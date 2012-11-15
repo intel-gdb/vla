@@ -299,12 +299,12 @@ f_type_print_base (struct type *type, struct ui_file *stream, int show,
       break;
 
     case TYPE_CODE_PTR:
-      fprintf_filtered (stream, "PTR TO -> ( ");
+      fprintfi_filtered (level, stream, "PTR TO -> ( ");
       f_type_print_base (TYPE_TARGET_TYPE (type), stream, 0, level);
       break;
 
     case TYPE_CODE_REF:
-      fprintf_filtered (stream, "REF TO -> ( ");
+      fprintfi_filtered (level, stream, "REF TO -> ( ");
       f_type_print_base (TYPE_TARGET_TYPE (type), stream, 0, level);
       break;
 
