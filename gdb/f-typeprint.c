@@ -266,13 +266,22 @@ f_type_print_base (struct type *type, struct ui_file *stream, int show,
       return;
     }
 
-  /* When SHOW is zero or less, and there is a valid type name, then always
-     just print the type name directly from the type.  */
+  /* If SHOW is zero or less, and there is a valid type name or tag name
+     (tags hold names of user-defined types), then always just print the name
+     directly without any further recursive application of this function.  */
 
-  if ((show <= 0) && (TYPE_NAME (type) != NULL))
+  if (show <= 0)
     {
-      fputs_filtered (TYPE_NAME (type), stream);
-      return;
+      const char *name_to_print = TYPE_NAME (type);
+
+      if (name_to_print == NULL)
+        name_to_print = TYPE_TAG_NAME (type);
+
+      if (name_to_print != NULL)
+        {
+          fputs_filtered (name_to_print, stream);
+          return;
+        }
     }
 
   if (TYPE_CODE (type) != TYPE_CODE_TYPEDEF)
