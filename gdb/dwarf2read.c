@@ -1851,6 +1851,9 @@ static void free_dwo_file_cleanup (void *);
 static void process_cu_includes (void);
 
 static void check_producer (struct dwarf2_cu *cu);
+
+static struct dwarf2_locexpr_baton block_to_locexpr_baton
+  (const struct dwarf_block *, struct dwarf2_cu *, const gdb_byte *, int);
 
 /* Various complaints about symbol reading that don't abort the process.  */
 
@@ -13913,29 +13916,95 @@ read_tag_string_type (struct die_info *die, struct dwarf2_cu *cu)
   struct gdbarch *gdbarch = get_objfile_arch (objfile);
   struct type *type, *range_type, *index_type, *char_type;
   struct attribute *attr;
-  unsigned int length;
-
-  attr = dwarf2_attr (die, DW_AT_string_length, cu);
-  if (attr)
-    {
-      length = DW_UNSND (attr);
-    }
-  else
-    {
-      /* Check for the DW_AT_byte_size attribute.  */
-      attr = dwarf2_attr (die, DW_AT_byte_size, cu);
-      if (attr)
-        {
-          length = DW_UNSND (attr);
-        }
-      else
-        {
-          length = 1;
-        }
-    }
+  unsigned int length = UINT_MAX;
 
   index_type = objfile_type (objfile)->builtin_int;
   range_type = create_range_type (NULL, index_type, 1, length);
+
+  /* If is define DW_AT_string_length, the length is stored at some location in
+     memory. */
+  attr = dwarf2_attr (die, DW_AT_string_length, cu);
+  if (attr)
+    {
+      if (attr_form_is_block (attr))
+        {
+          struct dwarf2_locexpr_baton length_location;
+          struct attribute *byte_size, *bit_size;
+          struct dwarf2_property_baton *baton;
+
+          byte_size = dwarf2_attr (die, DW_AT_byte_size, cu);
+          bit_size = dwarf2_attr (die, DW_AT_bit_size, cu);
+
+          /* DW_AT_byte_size should never occur together in combination with
+             DW_AT_string_length.  */
+          if ((byte_size == NULL && bit_size != NULL) ||
+                  (byte_size != NULL && bit_size == NULL))
+            complaint (&symfile_complaints, _("DW_AT_byte_size AND "
+                      "DW_AT_bit_size found together at the same time."));
+
+          /* If DW_AT_string_length AND DW_AT_byte_size exist together, it
+             describes the number of bytes that should be read from the length
+             memory location.  */
+          if (byte_size != NULL && bit_size == NULL)
+            {
+              /* Build new dwarf2_locexpr_baton structure with additions to the
+                 data attribute, to reflect DWARF specialities to get address
+                 sizes.  */
+              const gdb_byte append_ops[] = {
+                /* DW_OP_deref_size: size of an address on the target machine
+                   (bytes), where the size will be specified by the next
+                   operand.  */
+                DW_OP_deref_size,
+                /* Operand for DW_OP_deref_size.  */
+                DW_UNSND (byte_size) };
+
+              length_location = block_to_locexpr_baton (DW_BLOCK (attr), cu,
+                      append_ops, ARRAY_SIZE (append_ops));
+            }
+          else if (bit_size != NULL && byte_size == NULL)
+            complaint (&symfile_complaints, _("DW_AT_string_length AND "
+                      "DW_AT_bit_size found but not supported yet."));
+          /* If DW_AT_string_length WITHOUT DW_AT_byte_size exist, the default
+             is the address size of the target machine.  */
+          else
+            {
+              const gdb_byte append_ops[] = {
+                /* DW_OP_deref: size of an address on the target
+                   machine (bytes).  */
+                DW_OP_deref };
+
+              length_location = block_to_locexpr_baton (DW_BLOCK (attr), cu,
+                      append_ops, ARRAY_SIZE (append_ops));
+            }
+
+          baton = obstack_alloc (&objfile->objfile_obstack, sizeof (*baton));
+          baton->locexpr = length_location;
+          TYPE_RANGE_DATA (range_type)->high.data.baton = baton;
+          TYPE_RANGE_DATA (range_type)->high.kind = PROP_LOCEXPR;
+        }
+      else
+        {
+          TYPE_HIGH_BOUND (range_type) = DW_UNSND (attr);
+          TYPE_HIGH_BOUND_KIND (range_type) = PROP_CONST;
+        }
+    }
+  else
+    {
+      /* Check for the DW_AT_byte_size attribute, which represents the length
+         in this case.  */
+      attr = dwarf2_attr (die, DW_AT_byte_size, cu);
+      if (attr)
+        {
+          TYPE_HIGH_BOUND (range_type) = DW_UNSND (attr);
+          TYPE_HIGH_BOUND_KIND (range_type) = PROP_CONST;
+        }
+      else
+        {
+          TYPE_HIGH_BOUND (range_type) = 1;
+          TYPE_HIGH_BOUND_KIND (range_type) = PROP_CONST;
+        }
+    }
+
   char_type = language_string_char_type (cu->language_defn, gdbarch);
   type = create_string_type (NULL, char_type, range_type);
 
