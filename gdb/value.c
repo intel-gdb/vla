@@ -2788,13 +2788,22 @@ value_primitive_field (struct value *arg1, int offset,
 	v = allocate_value_lazy (type);
       else
 	{
-	  v = allocate_value (type);
-	  value_contents_copy_raw (v, value_embedded_offset (v),
-				   arg1, value_embedded_offset (arg1) + offset,
-				   TYPE_LENGTH (type));
+	  if (TYPE_DATA_LOCATION (type)
+	      && TYPE_DATA_LOCATION_KIND (type) == PROP_CONST)
+	    v = value_at_lazy (type, value_address (arg1) + offset);
+	  else
+	    {
+	      v = allocate_value (type);
+	      value_contents_copy_raw (v, value_embedded_offset (v),
+				       arg1, value_embedded_offset (arg1) + offset,
+				       TYPE_LENGTH (type));
+	    }
 	}
-      v->offset = (value_offset (arg1) + offset
-		   + value_embedded_offset (arg1));
+
+      if (!TYPE_DATA_LOCATION (type)
+         || !TYPE_DATA_LOCATION_KIND (type) == PROP_CONST)
+	v->offset = (value_offset (arg1) + offset
+		     + value_embedded_offset (arg1));
     }
   set_value_component_location (v, arg1);
   VALUE_REGNUM (v) = VALUE_REGNUM (arg1);
