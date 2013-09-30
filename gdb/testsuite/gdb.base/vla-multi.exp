@@ -40,7 +40,7 @@ set sizeof_vla [ expr "2" * "$sizeof_int" ]
 gdb_test "print sizeof vla_ptr\[0\]" "\\$\\d+ = ${sizeof_vla}" \
          "print sizeof vla_ptr\[0\]"
 gdb_test "ptype &vla_ptr" \
-    "type = int \\\(\\\*\\\*\\\)\\\[variable length\\\]" \
+    "type = int \\\(\\\*\\\*\\\)\\\[2\\\]" \
     "ptype &vla_ptr"
 
 gdb_breakpoint [gdb_get_line_number "f2_breakpoint"]

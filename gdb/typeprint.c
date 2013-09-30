@@ -459,6 +459,13 @@ whatis_exp (char *exp, int show)
 
   type = value_type (val);
 
+  if (TYPE_CODE (type) == TYPE_CODE_PTR)
+    if (is_dynamic_type (TYPE_TARGET_TYPE (type)))
+      {
+	val = value_addr (value_ind (val));
+	type = value_type (val);
+      }
+
   get_user_print_options (&opts);
   if (opts.objectprint)
     {
