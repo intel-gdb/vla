@@ -203,7 +203,7 @@ static int parse_number (const char *, int, int, YYSTYPE *);
 %token LOGICAL_S8_KEYWORD
 %token LOGICAL_KEYWORD REAL_KEYWORD REAL_S8_KEYWORD REAL_S16_KEYWORD 
 %token COMPLEX_S8_KEYWORD COMPLEX_S16_KEYWORD COMPLEX_S32_KEYWORD 
-%token BOOL_AND BOOL_OR BOOL_NOT   
+%token BOOL_AND BOOL_OR BOOL_NOT BOOL_XOR
 %token <lval> CHARACTER 
 
 %token <voidval> VARIABLE
@@ -217,6 +217,7 @@ static int parse_number (const char *, int, int, YYSTYPE *);
 %left BOOL_OR
 %right BOOL_NOT
 %left BOOL_AND
+%left BOOL_XOR
 %left '|'
 %left '^'
 %left '&'
@@ -426,6 +427,10 @@ exp     :       exp BOOL_AND exp
 
 exp	:	exp BOOL_OR exp
 			{ write_exp_elt_opcode (BINOP_LOGICAL_OR); }
+	;
+
+exp	:	exp BOOL_XOR exp
+			{ write_exp_elt_opcode (BINOP_LOGICAL_XOR); }
 	;
 
 exp	:	exp '=' exp
@@ -835,6 +840,8 @@ static const struct token dot_ops[] =
   { ".GT.", GREATERTHAN, BINOP_END },
   { ".lt.", LESSTHAN, BINOP_END },
   { ".LT.", LESSTHAN, BINOP_END },
+  { ".xor.", BOOL_XOR, BINOP_END },
+  { ".XOR.", BOOL_XOR, BINOP_END },
   { NULL, 0, 0 }
 };
 
