@@ -1,3 +1,4 @@
+
 /* Internal type definitions for GDB.
 
    Copyright (C) 1992-2013 Free Software Foundation, Inc.
@@ -1569,6 +1570,15 @@ extern struct type *lookup_unsigned_typename (const struct language_defn *,
 
 extern struct type *lookup_signed_typename (const struct language_defn *,
 					    struct gdbarch *, const char *);
+
+/* Resolves all dynamic values of a type e.g. array bounds to static values.
+   ADDR specifies the location of the variable the type is bound to.
+   If TYPE has no dynamic values returns TYPE otherwise a new type with static
+   values is returned.  */
+extern struct type *resolve_dynamic_type (struct type *type, CORE_ADDR addr);
+
+/* Predicates if the type has dynamic values, which are not resolved yet.  */
+extern int is_dynamic_type (const struct type *type);
 
 extern struct type *check_typedef (struct type *);
 
