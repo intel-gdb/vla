@@ -2300,6 +2300,7 @@ ada_value_primitive_packed_val (struct value *obj, const gdb_byte *valaddr,
   else if (VALUE_LVAL (obj) == lval_memory && value_lazy (obj))
     {
       v = value_at (type, value_address (obj));
+      type = value_type (v);
       bytes = (unsigned char *) alloca (len);
       read_memory (value_address (v) + offset, bytes, len);
     }
@@ -7657,6 +7658,7 @@ ada_template_to_fixed_record_type_1 (struct type *type,
 		 size first before creating the value.  */
 	      check_size (rtype);
 	      dval = value_from_contents_and_address (rtype, valaddr, address);
+	      rtype = value_type (dval);
 	    }
           else
             dval = dval0;
@@ -7759,7 +7761,10 @@ ada_template_to_fixed_record_type_1 (struct type *type,
       off = TYPE_FIELD_BITPOS (rtype, variant_field);
 
       if (dval0 == NULL)
-        dval = value_from_contents_and_address (rtype, valaddr, address);
+	{
+	  dval = value_from_contents_and_address (rtype, valaddr, address);
+	  rtype = value_type (dval);
+	}
       else
         dval = dval0;
 
@@ -7900,7 +7905,10 @@ to_record_with_fixed_variant_part (struct type *type, const gdb_byte *valaddr,
     return type;
 
   if (dval0 == NULL)
-    dval = value_from_contents_and_address (type, valaddr, address);
+    {
+      dval = value_from_contents_and_address (type, valaddr, address);
+      type = value_type (dval);
+    }
   else
     dval = dval0;
 
@@ -8198,6 +8206,7 @@ ada_to_fixed_type_1 (struct type *type, const gdb_byte *valaddr,
 	      value_from_contents_and_address (fixed_record_type,
 					       valaddr,
 					       address);
+            fixed_record_type = value_type (obj);
             if (real_type != NULL)
               return to_fixed_record_type
 		(real_type, NULL,

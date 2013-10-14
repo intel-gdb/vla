@@ -268,6 +268,7 @@ value_cast_structs (struct type *type, struct value *v2)
 	{
 	  v = value_full_object (v2, real_type, full, top, using_enc);
 	  v = value_at_lazy (real_type, value_address (v));
+	  real_type = value_type (v);
 
 	  /* We might be trying to cast to the outermost enclosing
 	     type, in which case search_struct_field won't work.  */
@@ -803,6 +804,7 @@ value_dynamic_cast (struct type *type, struct value *arg)
     return value_at_lazy (type, addr);
 
   tem = value_at (type, addr);
+  type = value_type (tem);
 
   /* The first dynamic check specified in 5.2.7.  */
   if (is_public_ancestor (arg_type, TYPE_TARGET_TYPE (resolved_type)))
@@ -1611,6 +1613,7 @@ value_ind (struct value *arg1)
 			      (value_as_address (arg1)
 			       - value_pointed_to_offset (arg1)));
 
+      enc_type = value_type (arg2);
       return readjust_indirect_value_type (arg2, enc_type, base_type, arg1);
     }
 
