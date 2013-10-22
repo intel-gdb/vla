@@ -659,6 +659,9 @@ struct main_type
     /* For TYPE_CODE_FUNC types,  */
     struct func_type *func_stuff;
   } type_specific;
+
+  /* Indirection to actual data.  */
+  struct dynamic_prop *data_location;
 };
 
 /* A ``struct type'' describes a particular instance of a type, with
@@ -1093,6 +1096,16 @@ extern void allocate_gnat_aux_type (struct type *);
   TYPE_RANGE_DATA(range_type)->high.kind
 #define TYPE_LOW_BOUND_KIND(range_type) \
   TYPE_RANGE_DATA(range_type)->low.kind
+
+/* Attribute accessors for VLA support.  */
+#define TYPE_DATA_LOCATION(thistype) \
+  TYPE_MAIN_TYPE(thistype)->data_location
+#define TYPE_DATA_LOCATION_BATON(thistype) \
+  TYPE_DATA_LOCATION (thistype)->data.baton
+#define TYPE_DATA_LOCATION_ADDR(thistype) \
+  TYPE_DATA_LOCATION (thistype)->data.const_val
+#define TYPE_DATA_LOCATION_KIND(thistype) \
+  TYPE_DATA_LOCATION (thistype)->kind
 
 /* Moto-specific stuff for FORTRAN arrays.  */
 

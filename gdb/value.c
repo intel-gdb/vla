@@ -3347,6 +3347,11 @@ coerce_ref (struct value *arg)
   struct value *retval;
   struct type *enc_type;
 
+  if (TYPE_DATA_LOCATION (value_type_arg_tmp) != NULL
+      && TYPE_DATA_LOCATION_KIND (value_type_arg_tmp) == PROP_CONST)
+    arg = value_at_lazy (value_type_arg_tmp,
+			 TYPE_DATA_LOCATION_ADDR (value_type_arg_tmp));
+
   retval = coerce_ref_if_computed (arg);
   if (retval)
     return retval;
@@ -3490,8 +3495,14 @@ value_fetch_lazy (struct value *val)
     }
   else if (VALUE_LVAL (val) == lval_memory)
     {
-      CORE_ADDR addr = value_address (val);
       struct type *type = check_typedef (value_enclosing_type (val));
+      CORE_ADDR addr;
+
+      if (TYPE_DATA_LOCATION (type) != NULL
+	  && TYPE_DATA_LOCATION_KIND (type) == PROP_CONST)
+	addr = TYPE_DATA_LOCATION_ADDR (type);
+      else
+	addr = value_address (val);
 
       if (TYPE_LENGTH (type))
 	read_value_memory (val, 0, value_stack (val),

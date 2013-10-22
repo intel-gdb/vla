@@ -1618,6 +1618,11 @@ is_dynamic_type (const struct type *type)
 	return 1;
     }
 
+  if (TYPE_DATA_LOCATION (type) != NULL
+      && (TYPE_DATA_LOCATION_KIND (type) == PROP_LOCEXPR
+	  || TYPE_DATA_LOCATION_KIND (type) == PROP_LOCLIST))
+      return 1;
+
   if (TYPE_CODE (type) == TYPE_CODE_PTR
       || TYPE_CODE (type) == TYPE_CODE_REF
       || TYPE_CODE (type) == TYPE_CODE_TYPEDEF)
@@ -1669,6 +1674,13 @@ resolve_dynamic_bounds (struct type *type, CORE_ADDR address)
 	    ary_dim = check_typedef (TYPE_TARGET_TYPE (ary_dim));
 	  } while (ary_dim != NULL && TYPE_CODE (ary_dim) == TYPE_CODE_ARRAY);
 	}
+    }
+
+  prop = TYPE_DATA_LOCATION (type);
+  if (dwarf2_evaluate_property (prop, address, &value))
+    {
+      TYPE_DATA_LOCATION_ADDR (type) = value;
+      TYPE_DATA_LOCATION_KIND (type) = PROP_CONST;
     }
 }
 
@@ -3911,6 +3923,13 @@ copy_type_recursive (struct objfile *objfile,
     {
       TYPE_RANGE_DATA (new_type) = xmalloc (sizeof (struct range_bounds));
       *TYPE_RANGE_DATA (new_type) = *TYPE_RANGE_DATA (type);
+    }
+
+  /* Ccopy the data location information.  */
+  if (TYPE_DATA_LOCATION (type) != NULL)
+    {
+      TYPE_DATA_LOCATION (new_type) = xmalloc (sizeof (struct dynamic_prop));
+      *TYPE_DATA_LOCATION (new_type) = *TYPE_DATA_LOCATION (type);
     }
 
   /* Copy pointers to other types.  */
