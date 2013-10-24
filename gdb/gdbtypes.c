@@ -1609,6 +1609,11 @@ get_type_length (const struct type *type)
 int
 is_dynamic_type (const struct type *type)
 {
+  int index;
+
+  if (type == NULL)
+    return 0;
+
   if (TYPE_CODE (type) == TYPE_CODE_ARRAY
       && TYPE_NFIELDS (type) == 1)
     {
@@ -1617,16 +1622,34 @@ is_dynamic_type (const struct type *type)
       if (!has_static_range (TYPE_RANGE_DATA (range_type)))
 	return 1;
     }
+  else if (TYPE_CODE (type) == TYPE_CODE_RANGE)
+    {
+      if (!has_static_range (TYPE_RANGE_DATA (type)))
+	 return 1;
+    }
 
-  if (TYPE_DATA_LOCATION (type) != NULL
-      && (TYPE_DATA_LOCATION_KIND (type) == PROP_LOCEXPR
-	  || TYPE_DATA_LOCATION_KIND (type) == PROP_LOCLIST))
-      return 1;
+  if (TYPE_DATA_LOCATION (type) != NULL)
+    {
+      if (TYPE_DATA_LOCATION_KIND (type) == PROP_LOCEXPR
+          || TYPE_DATA_LOCATION_KIND (type) == PROP_LOCLIST)
+        return 1;
+      else if (TYPE_DATA_LOCATION_KIND (type) == PROP_CONST)
+        return 0;
+    }
 
   if (TYPE_CODE (type) == TYPE_CODE_PTR
       || TYPE_CODE (type) == TYPE_CODE_REF
       || TYPE_CODE (type) == TYPE_CODE_TYPEDEF)
-    return is_dynamic_type (TYPE_TARGET_TYPE (type));
+    {
+      if (current_language->la_language == language_c)
+        return is_dynamic_type (TYPE_TARGET_TYPE (type));
+      return 0;
+    }
+
+  if (current_language->la_language == language_fortran)
+    for (index = 0; index < TYPE_NFIELDS (type); index++)
+      if (is_dynamic_type (TYPE_FIELD_TYPE (type, index)))
+        return 1;
 
   return 0;
 }
@@ -1637,19 +1660,22 @@ is_dynamic_type (const struct type *type)
    of the associated array.  */
 
 static void
-resolve_dynamic_bounds (struct type *type, CORE_ADDR address)
+resolve_dynamic_values (struct type *type, CORE_ADDR address)
 {
   struct type *real_type;
   const struct dynamic_prop *prop;
   CORE_ADDR value;
+  int index;
 
   gdb_assert (TYPE_CODE (type) != TYPE_CODE_TYPEDEF);
 
   if (TYPE_CODE (type) == TYPE_CODE_PTR
       || TYPE_CODE (type) == TYPE_CODE_REF)
-    resolve_dynamic_bounds (check_typedef (TYPE_TARGET_TYPE (type)), address);
+    resolve_dynamic_values (check_typedef (TYPE_TARGET_TYPE (type)), address);
   else
     {
+      CORE_ADDR adjusted_address = address;
+
       if (TYPE_CODE (type) == TYPE_CODE_ARRAY)
 	{
 	  struct type *ary_dim = type;
@@ -1674,6 +1700,24 @@ resolve_dynamic_bounds (struct type *type, CORE_ADDR address)
 	    ary_dim = check_typedef (TYPE_TARGET_TYPE (ary_dim));
 	  } while (ary_dim != NULL && TYPE_CODE (ary_dim) == TYPE_CODE_ARRAY);
 	}
+      else
+       {
+        /* Resolve field types if any.  */
+        for (index = 0; index < TYPE_NFIELDS (type); index++)
+         {
+           struct type *index_type = TYPE_FIELD_TYPE (type, index);
+
+           if (index_type == NULL)
+             continue;
+
+           if (TYPE_CODE (index_type) != TYPE_CODE_RANGE)
+             adjusted_address =
+               address + (TYPE_FIELD_BITPOS (type, index) / 8);
+
+           resolve_dynamic_values (
+             check_typedef (TYPE_FIELD_TYPE (type, index)), adjusted_address);
+         }
+       }
     }
 
   prop = TYPE_DATA_LOCATION (type);
@@ -1708,7 +1752,7 @@ resolve_dynamic_type (struct type *type, CORE_ADDR addr)
   do_cleanups (cleanup);
 
   real_type = check_typedef (resolved_type);
-  resolve_dynamic_bounds (real_type, addr);
+  resolve_dynamic_values (real_type, addr);
 
   resolved_type->length = get_type_length (real_type);
 
