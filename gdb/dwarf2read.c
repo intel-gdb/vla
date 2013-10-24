@@ -14420,13 +14420,13 @@ read_subrange_type (struct die_info *die, struct dwarf2_cu *cu)
      a variable rather than a constant value.  We'll allow it,
      but we don't know how to handle it.  */
   attr = dwarf2_attr (die, DW_AT_lower_bound, cu);
-  if (attr)
-    low.data.const_val
-      = dwarf2_get_attr_constant_value (attr, low.data.const_val);
-  else if (!low_default_is_valid)
-    complaint (&symfile_complaints, _("Missing DW_AT_lower_bound "
-				      "- DIE at 0x%x [in module %s]"),
-	       die->offset.sect_off, objfile_name (cu->objfile));
+  if (!attr_to_dynamic_prop (attr, die, cu, &low))
+    {
+      if (!attr && !low_default_is_valid)
+        complaint (&symfile_complaints, _("Missing DW_AT_lower_bound "
+                  "- DIE at 0x%x [in module %s]"),
+             die->offset.sect_off, objfile_name (cu->objfile));
+    }
 
   attr = dwarf2_attr (die, DW_AT_upper_bound, cu);
   if (!attr_to_dynamic_prop (attr, die, cu, &high))
