@@ -662,6 +662,18 @@ struct main_type
 
   /* Indirection to actual data.  */
   struct dynamic_prop *data_location;
+
+  /* Structure for DW_AT_allocated.
+     The presence of this attribute indicates that the object of the type
+     can be allocated/deallocated.  The value can be a dwarf expression,
+     reference, or a constant.  */
+  struct dynamic_prop *allocated;
+
+  /* Structure for DW_AT_associated.
+     The presence of this attribute indicated that the object of the type
+     can be associated.  The value can be a dwarf expression,
+     reference, or a constant.  */
+  struct dynamic_prop *associated;
 };
 
 /* A ``struct type'' describes a particular instance of a type, with
@@ -1106,6 +1118,20 @@ extern void allocate_gnat_aux_type (struct type *);
   TYPE_DATA_LOCATION (thistype)->data.const_val
 #define TYPE_DATA_LOCATION_KIND(thistype) \
   TYPE_DATA_LOCATION (thistype)->kind
+#define TYPE_ALLOCATED_PROP(thistype) TYPE_MAIN_TYPE(thistype)->allocated
+#define TYPE_ASSOCIATED_PROP(thistype) TYPE_MAIN_TYPE(thistype)->associated
+
+/* Allocated status of type object.  If set to non-zero it means the object
+   is allocated. A zero value means it is not allocated.  */
+#define TYPE_NOT_ALLOCATED(t)  (TYPE_ALLOCATED_PROP (t) \
+  && TYPE_ALLOCATED_PROP (t)->kind == PROP_CONST \
+  && !TYPE_ALLOCATED_PROP (t)->data.const_val)
+
+/* Associated status of type object.  If set to non-zero it means the object
+   is associated. A zero value means it is not associated.  */
+#define TYPE_NOT_ASSOCIATED(t)  (TYPE_ASSOCIATED_PROP (t) \
+  && TYPE_ASSOCIATED_PROP (t)->kind == PROP_CONST \
+  && !TYPE_ASSOCIATED_PROP (t)->data.const_val)
 
 /* Moto-specific stuff for FORTRAN arrays.  */
 

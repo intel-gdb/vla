@@ -21447,6 +21447,34 @@ set_die_type (struct die_info *die, struct type *type, struct dwarf2_cu *cu)
       && !HAVE_GNAT_AUX_INFO (type))
     INIT_GNAT_SPECIFIC (type);
 
+  /* Read DW_AT_allocated and set in type.  */
+  attr = dwarf2_attr (die, DW_AT_allocated, cu);
+  if (attr_form_is_block (attr))
+    {
+      struct dynamic_prop prop;
+
+      if (attr_to_dynamic_prop (attr, die, cu, &prop))
+        {
+          TYPE_ALLOCATED_PROP (type)
+            = obstack_alloc (&objfile->objfile_obstack, sizeof (prop));
+          *TYPE_ALLOCATED_PROP (type) = prop;
+        }
+    }
+
+  /* Read DW_AT_associated and set in type.  */
+  attr = dwarf2_attr (die, DW_AT_associated, cu);
+  if (attr_form_is_block (attr))
+    {
+      struct dynamic_prop prop;
+
+      if (attr_to_dynamic_prop (attr, die, cu, &prop))
+        {
+          TYPE_ASSOCIATED_PROP (type)
+            = obstack_alloc (&objfile->objfile_obstack, sizeof (prop));
+          *TYPE_ASSOCIATED_PROP (type) = prop;
+        }
+    }
+
   /* Read DW_AT_data_location and set in type.  */
   attr = dwarf2_attr (die, DW_AT_data_location, cu);
   if (attr_form_is_block (attr))
