@@ -200,7 +200,14 @@ value_subscripted_rvalue (struct value *array, LONGEST index, int lowerbound)
 
   if (index < lowerbound || (!TYPE_ARRAY_UPPER_BOUND_IS_UNDEFINED (array_type)
 			     && elt_offs >= TYPE_LENGTH (array_type)))
-    error (_("no such vector element"));
+    {
+      if (TYPE_NOT_ASSOCIATED (array_type))
+        error (_("no such vector element because not associated"));
+      else if (TYPE_NOT_ALLOCATED (array_type))
+        error (_("no such vector element because not allocated"));
+      else
+        error (_("no such vector element"));
+    }
 
   if (VALUE_LVAL (array) == lval_memory && value_lazy (array))
     v = allocate_value_lazy (elt_type);

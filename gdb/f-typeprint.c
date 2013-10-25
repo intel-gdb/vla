@@ -30,6 +30,7 @@
 #include "gdbcore.h"
 #include "target.h"
 #include "f-lang.h"
+#include "valprint.h"
 
 #include <string.h>
 #include <errno.h>
@@ -55,6 +56,17 @@ f_print_type (struct type *type, const char *varstring, struct ui_file *stream,
 {
   enum type_code code;
   int demangled_args;
+
+  if (TYPE_NOT_ASSOCIATED (type))
+    {
+      val_print_not_associated (stream);
+      return;
+    }
+  if (TYPE_NOT_ALLOCATED (type))
+    {
+      val_print_not_allocated (stream);
+      return;
+    }
 
   f_type_print_base (type, stream, show, level);
   code = TYPE_CODE (type);
@@ -170,28 +182,36 @@ f_type_print_varspec_suffix (struct type *type, struct ui_file *stream,
       if (arrayprint_recurse_level == 1)
 	fprintf_filtered (stream, "(");
 
-      if (TYPE_CODE (TYPE_TARGET_TYPE (type)) == TYPE_CODE_ARRAY)
-	f_type_print_varspec_suffix (TYPE_TARGET_TYPE (type), stream, 0, 0, 0,
-				     arrayprint_recurse_level);
-
-      lower_bound = f77_get_lowerbound (type);
-      if (lower_bound != 1)	/* Not the default.  */
-	fprintf_filtered (stream, "%d:", lower_bound);
-
-      /* Make sure that, if we have an assumed size array, we
-         print out a warning and print the upperbound as '*'.  */
-
-      if (TYPE_ARRAY_UPPER_BOUND_IS_UNDEFINED (type))
-	fprintf_filtered (stream, "*");
+      if (TYPE_NOT_ASSOCIATED (type))
+        val_print_not_associated (stream);
+      else if (TYPE_NOT_ALLOCATED (type))
+        val_print_not_allocated (stream);
       else
-	{
-	  upper_bound = f77_get_upperbound (type);
-	  fprintf_filtered (stream, "%d", upper_bound);
-	}
+        {
+          if (TYPE_CODE (TYPE_TARGET_TYPE (type)) == TYPE_CODE_ARRAY)
+            f_type_print_varspec_suffix (TYPE_TARGET_TYPE (type), stream, 0, 0, 0,
+                 arrayprint_recurse_level);
 
-      if (TYPE_CODE (TYPE_TARGET_TYPE (type)) != TYPE_CODE_ARRAY)
-	f_type_print_varspec_suffix (TYPE_TARGET_TYPE (type), stream, 0, 0, 0,
-				     arrayprint_recurse_level);
+          lower_bound = f77_get_lowerbound (type);
+          if (lower_bound != 1)	/* Not the default.  */
+            fprintf_filtered (stream, "%d:", lower_bound);
+
+          /* Make sure that, if we have an assumed size array, we
+             print out a warning and print the upperbound as '*'.  */
+
+          if (TYPE_ARRAY_UPPER_BOUND_IS_UNDEFINED (type))
+            fprintf_filtered (stream, "*");
+          else
+            {
+              upper_bound = f77_get_upperbound (type);
+              fprintf_filtered (stream, "%d", upper_bound);
+            }
+
+          if (TYPE_CODE (TYPE_TARGET_TYPE (type)) != TYPE_CODE_ARRAY)
+            f_type_print_varspec_suffix (TYPE_TARGET_TYPE (type), stream, 0, 0, 0,
+                 arrayprint_recurse_level);
+        }
+
       if (arrayprint_recurse_level == 1)
 	fprintf_filtered (stream, ")");
       else

@@ -307,6 +307,18 @@ valprint_check_validity (struct ui_file *stream,
 {
   CHECK_TYPEDEF (type);
 
+  if (TYPE_NOT_ASSOCIATED (type))
+    {
+      val_print_not_associated (stream);
+      return 0;
+    }
+
+  if (TYPE_NOT_ALLOCATED (type))
+    {
+      val_print_not_allocated (stream);
+      return 0;
+    }
+
   if (TYPE_CODE (type) != TYPE_CODE_UNION
       && TYPE_CODE (type) != TYPE_CODE_STRUCT
       && TYPE_CODE (type) != TYPE_CODE_ARRAY)
@@ -360,6 +372,18 @@ void
 val_print_invalid_address (struct ui_file *stream)
 {
   fprintf_filtered (stream, _("<invalid address>"));
+}
+
+void
+val_print_not_allocated (struct ui_file *stream)
+{
+  fprintf_filtered (stream, _("<not allocated>"));
+}
+
+void
+val_print_not_associated (struct ui_file *stream)
+{
+  fprintf_filtered (stream, _("<not associated>"));
 }
 
 /* A generic val_print that is suitable for use by language
@@ -803,11 +827,15 @@ static int
 value_check_printable (struct value *val, struct ui_file *stream,
 		       const struct value_print_options *options)
 {
+  const struct type *type;
+
   if (val == 0)
     {
       fprintf_filtered (stream, _("<address of value unknown>"));
       return 0;
     }
+
+  type = value_type (val);
 
   if (value_entirely_optimized_out (val))
     {
@@ -831,6 +859,18 @@ value_check_printable (struct value *val, struct ui_file *stream,
     {
       fprintf_filtered (stream, _("<internal function %s>"),
 			value_internal_function_name (val));
+      return 0;
+    }
+
+  if (TYPE_NOT_ASSOCIATED (type))
+    {
+      val_print_not_associated (stream);
+      return 0;
+    }
+
+  if (TYPE_NOT_ALLOCATED (type))
+    {
+      val_print_not_allocated (stream);
       return 0;
     }
 

@@ -2557,6 +2557,19 @@ dwarf2_evaluate_property (const struct dynamic_prop *prop, CORE_ADDR address,
   return 0;
 }
 
+/* See dwarf2loc.h.  */
+
+int
+dwarf2_address_data_valid (const struct type *type)
+{
+  if (TYPE_NOT_ASSOCIATED (type))
+    return 0;
+
+  if (TYPE_NOT_ALLOCATED (type))
+    return 0;
+
+  return 1;
+}
 
 /* Helper functions and baton for dwarf2_loc_desc_needs_frame.  */
 

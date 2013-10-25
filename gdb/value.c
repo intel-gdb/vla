@@ -43,6 +43,7 @@
 #include "tracepoint.h"
 #include "cp-abi.h"
 #include "user-regs.h"
+#include "dwarf2loc.h"
 
 /* Prototypes for exported functions.  */
 
@@ -1496,6 +1497,25 @@ set_value_component_location (struct value *component,
 
       if (funcs->copy_closure)
         component->location.computed.closure = funcs->copy_closure (whole);
+    }
+
+  /* For dynamic types compute the address of the component value location in
+     sub range types based on the location of the sub range type, if not being
+     an internal GDB variable or parts of it.  */
+  if (VALUE_LVAL (component) != lval_internalvar
+      && VALUE_LVAL (component) != lval_internalvar_component)
+    {
+      CORE_ADDR addr;
+      struct type *type = value_type (whole);
+
+      addr = value_raw_address (component);
+
+      if (TYPE_DATA_LOCATION (type)
+          && TYPE_DATA_LOCATION_KIND (type) == PROP_CONST)
+        {
+          addr = TYPE_DATA_LOCATION_ADDR (type);
+          set_value_address (component, addr);
+        }
     }
 }
 

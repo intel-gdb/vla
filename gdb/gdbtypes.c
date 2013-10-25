@@ -1564,6 +1564,11 @@ get_type_length (const struct type *type)
       && TYPE_CODE (type) != TYPE_CODE_STRING)
     return len;
 
+  /* Check if the type is associated or allocated.  If not associated or
+     allocated return 0, as the dynamic type length is unknown.  */
+  if (!dwarf2_address_data_valid (type))
+    return 0;
+
   range_type = check_typedef (TYPE_INDEX_TYPE (type));
 
   if (!has_static_range (TYPE_RANGE_DATA (range_type)))
@@ -1646,6 +1651,12 @@ is_dynamic_type (const struct type *type)
       return 0;
     }
 
+  if (TYPE_ASSOCIATED_PROP (type))
+    return 1;
+
+  if (TYPE_ALLOCATED_PROP (type))
+    return 1;
+
   if (current_language->la_language == language_fortran)
     for (index = 0; index < TYPE_NFIELDS (type); index++)
       if (is_dynamic_type (TYPE_FIELD_TYPE (type, index)))
@@ -1664,18 +1675,30 @@ resolve_dynamic_values (struct type *type, CORE_ADDR address)
 {
   struct type *real_type;
   const struct dynamic_prop *prop;
-  CORE_ADDR value;
+  CORE_ADDR value, adjusted_address = address;
   int index;
 
   gdb_assert (TYPE_CODE (type) != TYPE_CODE_TYPEDEF);
+
+  prop = TYPE_ALLOCATED_PROP (type);
+  if (dwarf2_evaluate_property (prop, address, &value))
+    {
+      TYPE_ALLOCATED_PROP (type)->kind = PROP_CONST;
+      TYPE_ALLOCATED_PROP (type)->data.const_val = value;
+    }
+
+  prop = TYPE_ASSOCIATED_PROP (type);
+  if (dwarf2_evaluate_property (prop, address, &value))
+    {
+      TYPE_ASSOCIATED_PROP (type)->kind = PROP_CONST;
+      TYPE_ASSOCIATED_PROP (type)->data.const_val = value;
+    }
 
   if (TYPE_CODE (type) == TYPE_CODE_PTR
       || TYPE_CODE (type) == TYPE_CODE_REF)
     resolve_dynamic_values (check_typedef (TYPE_TARGET_TYPE (type)), address);
   else
     {
-      CORE_ADDR adjusted_address = address;
-
       if (TYPE_CODE (type) == TYPE_CODE_ARRAY)
 	{
 	  struct type *ary_dim = type;
@@ -1723,9 +1746,14 @@ resolve_dynamic_values (struct type *type, CORE_ADDR address)
   prop = TYPE_DATA_LOCATION (type);
   if (dwarf2_evaluate_property (prop, address, &value))
     {
+      adjusted_address = value;
       TYPE_DATA_LOCATION_ADDR (type) = value;
       TYPE_DATA_LOCATION_KIND (type) = PROP_CONST;
     }
+
+  if (TYPE_CODE (type) == TYPE_CODE_ARRAY)
+    resolve_dynamic_values (check_typedef (TYPE_TARGET_TYPE (type)),
+      adjusted_address);
 }
 
 /* See gdbtypes.h  */
@@ -3974,6 +4002,22 @@ copy_type_recursive (struct objfile *objfile,
     {
       TYPE_DATA_LOCATION (new_type) = xmalloc (sizeof (struct dynamic_prop));
       *TYPE_DATA_LOCATION (new_type) = *TYPE_DATA_LOCATION (type);
+    }
+
+  /* Copy allocated information.  */
+  if (TYPE_ALLOCATED_PROP (type))
+    {
+      TYPE_ALLOCATED_PROP (new_type) =
+              xmalloc (sizeof (struct dynamic_prop));
+      *TYPE_ALLOCATED_PROP (new_type) = *TYPE_ALLOCATED_PROP (type);
+    }
+
+  /* Copy associated information.  */
+  if (TYPE_ASSOCIATED_PROP (type))
+    {
+      TYPE_ASSOCIATED_PROP (new_type) =
+              xmalloc (sizeof (struct dynamic_prop));
+      *TYPE_ASSOCIATED_PROP (new_type) = *TYPE_ASSOCIATED_PROP (type);
     }
 
   /* Copy pointers to other types.  */
