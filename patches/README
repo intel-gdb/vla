@@ -19,6 +19,7 @@ patches="
 	binutils-sharable.patch
 	binutils-error.patch
 	binutils-lto-mixed.patch
+	binutils-pr12639.patch
 "
 
 for p in $patches
