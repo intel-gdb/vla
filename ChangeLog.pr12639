@@ -1,0 +1,13 @@
+bfd/
+
+2011-04-06  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR binutils/12639
+	* elfcode.h (elf_slurp_symbol_table): Check valid local symbols.
+
+binutils/
+
+2011-04-06  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR binutils/12639
+	* readelf.c (process_symbol_table): Detect corrupted symtab.

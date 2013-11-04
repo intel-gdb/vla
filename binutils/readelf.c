@@ -9618,7 +9618,7 @@ process_symbol_table (FILE * file)
 	   i < elf_header.e_shnum;
 	   i++, section++)
 	{
-	  unsigned int si;
+	  unsigned int si, start_global;
 	  char * strtab = NULL;
 	  unsigned long int strtab_size = 0;
 	  Elf_Internal_Sym * symtab;
@@ -9651,6 +9651,7 @@ process_symbol_table (FILE * file)
 	  if (symtab == NULL)
 	    continue;
 
+	  start_global = section->sh_info;
 	  if (section->sh_link == elf_header.e_shstrndx)
 	    {
 	      strtab = string_table;
@@ -9675,7 +9676,11 @@ process_symbol_table (FILE * file)
 	      putchar (' ');
 	      print_vma (psym->st_size, DEC_5);
 	      printf (" %-7s", get_symbol_type (ELF_ST_TYPE (psym->st_info)));
-	      printf (" %-6s", get_symbol_binding (ELF_ST_BIND (psym->st_info)));
+	      if (si < start_global
+		  && ELF_ST_BIND (psym->st_info) != STB_LOCAL)
+		printf (" %-6s", "<corrupt>");
+	      else
+		printf (" %-6s", get_symbol_binding (ELF_ST_BIND (psym->st_info)));
 	      printf (" %-7s", get_symbol_visibility (ELF_ST_VISIBILITY (psym->st_other)));
 	      /* Check to see if any other bits in the st_other field are set.
 	         Note - displaying this information disrupts the layout of the
