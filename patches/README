@@ -18,6 +18,7 @@ clean=$1
 patches="
 	binutils-sharable.patch
 	binutils-error.patch
+	binutils-lto-mixed.patch
 "
 
 for p in $patches
