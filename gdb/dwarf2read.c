@@ -14431,17 +14431,49 @@ read_subrange_type (struct die_info *die, struct dwarf2_cu *cu)
   attr = dwarf2_attr (die, DW_AT_upper_bound, cu);
   if (!attr_to_dynamic_prop (attr, die, cu, &high))
     {
+      struct dynamic_prop count;
+
       attr = dwarf2_attr (die, DW_AT_count, cu);
-      if (attr)
+      if (attr_to_dynamic_prop (attr, die, cu, &count))
 	{
-	  int count = dwarf2_get_attr_constant_value (attr, 1);
-	  high.data.const_val = low.data.const_val + count - 1;
+	  if (count.kind == PROP_LOCEXPR)
+	    {
+	      enum bfd_endian byte_order;
+	      struct dwarf2_property_baton *baton = count.data.baton;
+	      const struct dwarf_block blk = {baton->locexpr.size,
+					      baton->locexpr.data};
+	      /* Allocate a static buffer to hold the following expression:
+		 DW_OP_const8u(1) + CORE_ADDR(8) + DW_OP_plus(1)
+		 + DW_OP_const1s(1), char(1) + DW_OP_minus(1) == 13 bytes.  */
+	      gdb_byte ops[13];
+
+	      ops[0] = DW_OP_const8u;
+	      byte_order = gdbarch_byte_order (get_objfile_arch (cu->objfile));
+	      store_unsigned_integer (ops + 1, 8, byte_order,
+				      low.data.const_val);
+
+	      ops[9] = DW_OP_plus;
+	      ops[10] = DW_OP_const1u;
+	      ops[11] = 1;
+	      ops[12] = DW_OP_minus;
+
+	      baton
+		= obstack_alloc (&cu->objfile->objfile_obstack,
+				 sizeof (struct dwarf2_property_baton));
+	      /* This should yield the following expression:
+		 high = low + count - 1.
+	         Whereas low is a dwarf expression itself.  */
+	      baton->locexpr = block_to_locexpr_baton (&blk, cu, ops,
+						       sizeof (ops));
+	      high.data.baton = baton;
+	      high.kind = PROP_LOCEXPR;
+	    }
+	  else if (count.kind == PROP_CONST)
+	    high.data.const_val = low.data.const_val + count.data.const_val - 1;
 	}
       else
-	{
-	  /* Unspecified array length.  */
-	  high.data.const_val = low.data.const_val - 1;
-	}
+	/* Unspecified array length.  */
+	high.data.const_val = low.data.const_val - 1;
     }
 
   /* Dwarf-2 specifications explicitly allows to create subrange types
