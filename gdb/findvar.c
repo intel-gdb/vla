@@ -468,6 +468,9 @@ default_read_var_value (struct symbol *var, struct frame_info *frame)
       return v;
 
     case LOC_CONST_BYTES:
+      if (is_dynamic_type (type))
+	/* Value is a constant byte-sequence and needs no memory access.  */
+	type = resolve_dynamic_type (type, /* Unused address.  */ 0);
       v = allocate_value (type);
       memcpy (value_contents_raw (v), SYMBOL_VALUE_BYTES (var),
 	      TYPE_LENGTH (type));
