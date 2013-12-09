@@ -43,8 +43,9 @@ extern void f_val_print (struct type *, const gdb_byte *, int, CORE_ADDR,
    
 enum f90_range_type
   {
-    SUBARRAY_LOW_BOUND = 0x1,		/* "(low:)"  */
-    SUBARRAY_HIGH_BOUND = 0x2		/* "(:high)"  */
+    SUBARRAY_LOW_BOUND = 0x1,		/* "(low:)" or "(low::)" */
+    SUBARRAY_HIGH_BOUND = 0x2,		/* "(:high)" or "(:high:)"  */
+    SUBARRAY_STRIDE = 0x4		/* "(::stride)"  */
   };
 
 /* A common block.  */

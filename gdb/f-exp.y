@@ -308,7 +308,8 @@ arglist	:	arglist ',' exp   %prec ABOVE_COMMA
 
 subrange:	exp ':' exp	%prec ABOVE_COMMA
 			{ write_exp_elt_opcode (OP_F90_RANGE);
-			  write_exp_elt_longcst (SUBARRAY_LOW_BOUND | SUBARRAY_HIGH_BOUND);
+			  write_exp_elt_longcst (SUBARRAY_LOW_BOUND
+						   | SUBARRAY_HIGH_BOUND);
 			  write_exp_elt_opcode (OP_F90_RANGE); }
 	;
 
@@ -327,6 +328,35 @@ subrange:	':' exp	%prec ABOVE_COMMA
 subrange:	':'	%prec ABOVE_COMMA
 			{ write_exp_elt_opcode (OP_F90_RANGE);
 			  write_exp_elt_longcst (0);
+			  write_exp_elt_opcode (OP_F90_RANGE); }
+	;
+
+/* Each subrange type can have a stride argument.  */
+subrange:	exp ':' exp ':' exp	%prec ABOVE_COMMA
+			{ write_exp_elt_opcode (OP_F90_RANGE);
+			  write_exp_elt_longcst (SUBARRAY_LOW_BOUND
+						   | SUBARRAY_HIGH_BOUND
+						   | SUBARRAY_STRIDE);
+			  write_exp_elt_opcode (OP_F90_RANGE); }
+	;
+
+subrange:	exp ':' ':' exp	%prec ABOVE_COMMA
+			{ write_exp_elt_opcode (OP_F90_RANGE);
+			  write_exp_elt_longcst (SUBARRAY_LOW_BOUND
+						   | SUBARRAY_STRIDE);
+			  write_exp_elt_opcode (OP_F90_RANGE); }
+	;
+
+subrange:	':' exp ':' exp	%prec ABOVE_COMMA
+			{ write_exp_elt_opcode (OP_F90_RANGE);
+			  write_exp_elt_longcst (SUBARRAY_HIGH_BOUND
+						   | SUBARRAY_STRIDE);
+			  write_exp_elt_opcode (OP_F90_RANGE); }
+	;
+
+subrange:	':' ':' exp	%prec ABOVE_COMMA
+			{ write_exp_elt_opcode (OP_F90_RANGE);
+			  write_exp_elt_longcst (SUBARRAY_STRIDE);
 			  write_exp_elt_opcode (OP_F90_RANGE); }
 	;
 

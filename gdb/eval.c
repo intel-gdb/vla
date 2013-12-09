@@ -432,7 +432,7 @@ value_f90_subarray (struct value *array, struct expression *exp,
       struct subscript_range
       {
         enum f90_range_type f90_range_type;
-        LONGEST low, high;
+        LONGEST low, high, stride;
       }
       range;
       LONGEST number;
@@ -482,6 +482,14 @@ value_f90_subarray (struct value *array, struct expression *exp,
 	        == SUBARRAY_HIGH_BOUND)
 	    range->high = value_as_long (evaluate_subexp (NULL_TYPE, exp,
 							  pos, noside));
+
+	  /* Assign the user's stride value if provided.  */
+	  if ((range->f90_range_type & SUBARRAY_STRIDE) == SUBARRAY_STRIDE)
+	    range->stride = value_as_long (evaluate_subexp (NULL_TYPE, exp,
+							    pos, noside));
+	  /* Assign the default stride value '1'.  */
+	  else
+	    range->stride = 1;
 	}
       /* User input is an index.  E.g.: "p arry(5)".  */
       else
