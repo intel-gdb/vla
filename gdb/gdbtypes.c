@@ -1643,6 +1643,10 @@ is_dynamic_type (const struct type *type)
     }
 
   if (TYPE_CODE (type) == TYPE_CODE_PTR
+      && TYPE_CODE (TYPE_TARGET_TYPE (type)) == TYPE_CODE_STRING)
+    return is_dynamic_type (TYPE_TARGET_TYPE (type));
+
+  if (TYPE_CODE (type) == TYPE_CODE_PTR
       || TYPE_CODE (type) == TYPE_CODE_REF
       || TYPE_CODE (type) == TYPE_CODE_TYPEDEF)
     {
@@ -1699,7 +1703,8 @@ resolve_dynamic_values (struct type *type, CORE_ADDR address)
     resolve_dynamic_values (check_typedef (TYPE_TARGET_TYPE (type)), address);
   else
     {
-      if (TYPE_CODE (type) == TYPE_CODE_ARRAY)
+      if (TYPE_CODE (type) == TYPE_CODE_ARRAY
+          || TYPE_CODE (type) == TYPE_CODE_STRING)
 	{
 	  struct type *ary_dim = type;
 
