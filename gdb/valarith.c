@@ -195,8 +195,20 @@ value_subscripted_rvalue (struct value *array, LONGEST index, int lowerbound)
   struct type *array_type = check_typedef (value_type (array));
   struct type *elt_type = check_typedef (TYPE_TARGET_TYPE (array_type));
   unsigned int elt_size = TYPE_LENGTH (elt_type);
-  unsigned int elt_offs = elt_size * longest_to_int (index - lowerbound);
+  unsigned int elt_offs = longest_to_int (index - lowerbound);
+  LONGEST elt_stride = TYPE_BYTE_STRIDE (TYPE_INDEX_TYPE (array_type));
   struct value *v;
+
+  if (elt_stride > 0)
+    elt_offs *= elt_stride;
+  else if (elt_stride < 0)
+    {
+      int offs = (elt_offs + 1) * elt_stride;
+
+      elt_offs = TYPE_LENGTH (array_type) + offs;
+    }
+  else
+    elt_offs *= elt_size;
 
   if (index < lowerbound || (!TYPE_ARRAY_UPPER_BOUND_IS_UNDEFINED (array_type)
 			     && elt_offs >= TYPE_LENGTH (array_type)))

@@ -805,7 +805,8 @@ allocate_stub_method (struct type *type)
 struct type *
 create_range_type_1 (struct type *result_type, struct type *index_type,
 		     const struct dynamic_prop *low_bound,
-		     const struct dynamic_prop *high_bound)
+		     const struct dynamic_prop *high_bound,
+         const struct dynamic_prop *stride)
 {
   if (result_type == NULL)
     result_type = alloc_type_copy (index_type);
@@ -820,6 +821,7 @@ create_range_type_1 (struct type *result_type, struct type *index_type,
     TYPE_ZALLOC (result_type, sizeof (struct range_bounds));
   TYPE_RANGE_DATA (result_type)->low = *low_bound;
   TYPE_RANGE_DATA (result_type)->high = *high_bound;
+  TYPE_RANGE_DATA (result_type)->stride = *stride;
 
   if (low_bound->kind == PROP_CONST && low_bound->data.const_val >= 0)
     TYPE_UNSIGNED (result_type) = 1;
@@ -841,7 +843,7 @@ struct type *
 create_range_type (struct type *result_type, struct type *index_type,
 		   LONGEST low_bound, LONGEST high_bound)
 {
-  struct dynamic_prop low, high;
+  struct dynamic_prop low, high, stride;
 
   low.kind = PROP_CONST;
   low.data.const_val = low_bound;
@@ -849,8 +851,11 @@ create_range_type (struct type *result_type, struct type *index_type,
   high.kind = PROP_CONST;
   high.data.const_val = high_bound;
 
+  stride.kind = PROP_CONST;
+  stride.data.const_val = 0;
+
   result_type = create_range_type_1 (result_type, index_type,
-				     &low, &high);
+				     &low, &high, &stride);
 
   return result_type;
 }
@@ -1556,7 +1561,7 @@ get_type_length (const struct type *type)
 {
   const struct type *range_type, *target_type;
   ULONGEST len = TYPE_LENGTH (type);
-  LONGEST low_bound, high_bound;
+  LONGEST low_bound, high_bound, stride;
 
   gdb_assert (TYPE_CODE (type) != TYPE_CODE_TYPEDEF);
 
@@ -1582,6 +1587,7 @@ get_type_length (const struct type *type)
      is smaller than the low bound.  */
   low_bound = TYPE_LOW_BOUND (range_type);
   high_bound = TYPE_HIGH_BOUND (range_type);
+  stride = abs (TYPE_BYTE_STRIDE (range_type));
 
   if (high_bound < low_bound)
     len = 0;
@@ -1600,9 +1606,13 @@ get_type_length (const struct type *type)
          from unsigned int to ULONGEST.  */
       ULONGEST ulow = low_bound, uhigh = high_bound;
       ULONGEST tlen = get_type_length (target_type);
+      LONGEST count = uhigh - ulow + 1;
 
-      len = tlen * (uhigh - ulow + 1);
-      if (tlen == 0 || (len / tlen - 1 + ulow) != uhigh || len > UINT_MAX)
+      if (stride == 0)
+        stride = tlen;
+
+      len = count * stride;
+      if (tlen == 0 || len / stride != count || len > UINT_MAX)
         len = 0;
     }
 
@@ -1725,6 +1735,13 @@ resolve_dynamic_values (struct type *type, CORE_ADDR address)
 		TYPE_HIGH_BOUND_KIND (range_type) = PROP_CONST;
 	      }
 
+	    prop = &TYPE_RANGE_DATA (range_type)->stride;
+	    if (dwarf2_evaluate_property (prop, address, &value))
+	      {
+		TYPE_BYTE_STRIDE (range_type) = value;
+		TYPE_BYTE_STRIDE_KIND (range_type) = PROP_CONST;
+	      }
+
 	    ary_dim = check_typedef (TYPE_TARGET_TYPE (ary_dim));
 	  } while (ary_dim != NULL && TYPE_CODE (ary_dim) == TYPE_CODE_ARRAY);
 	}
@@ -1751,6 +1768,14 @@ resolve_dynamic_values (struct type *type, CORE_ADDR address)
   prop = TYPE_DATA_LOCATION (type);
   if (dwarf2_evaluate_property (prop, address, &value))
     {
+      struct type *range_type = TYPE_INDEX_TYPE (type);
+
+      /* Adjust address if stride is negative otherwise we point to the
+         end of the array.  */
+      if (TYPE_BYTE_STRIDE (range_type) < 0)
+        value += (TYPE_HIGH_BOUND (range_type) - TYPE_LOW_BOUND (range_type))
+              * TYPE_BYTE_STRIDE (range_type);
+
       adjusted_address = value;
       TYPE_DATA_LOCATION_ADDR (type) = value;
       TYPE_DATA_LOCATION_KIND (type) = PROP_CONST;
