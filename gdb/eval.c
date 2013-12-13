@@ -490,6 +490,10 @@ value_f90_subarray (struct value *array, struct expression *exp,
 	  /* Assign the default stride value '1'.  */
 	  else
 	    range->stride = 1;
+
+	  /* Check the provided stride value is illegal, aka '0'.  */
+	  if (range->stride == 0)
+	    error (_("Stride must not be 0"));
 	}
       /* User input is an index.  E.g.: "p arry(5)".  */
       else
@@ -547,10 +551,19 @@ value_f90_subarray (struct value *array, struct expression *exp,
 	       range argument to allow the correct output representation.  */
 	    dim_count++;
 
+	    /* For a negative stride the lower boundary must be larger than the
+	       upper boundary.
+	       For a positive stride the lower boundary must be smaller than the
+	       upper boundary.  */
+	    if ((range->stride < 0 && range->low < range->high)
+	          || (range->stride > 0 && range->low > range->high))
+	      error (_("Wrong value provided for stride"));
+
 	    new_array
 	      = value_slice_1 (new_array,
 			       longest_to_int (range->low),
 			       longest_to_int (range->high - range->low + 1),
+			       longest_to_int (range->stride),
 			       dim_count);
 	  }
 	  break;
@@ -577,7 +590,8 @@ value_f90_subarray (struct value *array, struct expression *exp,
 		dim_count++;
 		new_array = value_slice_1 (new_array,
 					   longest_to_int (index->number),
-					   1, /* length is '1' element  */
+					   1, /* COUNT is '1' element  */
+					   1, /* STRIDE set to '1'  */
 					   dim_count);
 	      }
 
@@ -609,7 +623,9 @@ value_f90_subarray (struct value *array, struct expression *exp,
 	 the output array.  So we traverse the SUBSCRIPT_ARRAY again, looking
 	 for a range entry.  When we find one, we use the range info to create
 	 an additional range_type to set the correct bounds and dimensions for
-	 the output array.  */
+	 the output array.  In addition, we may have a stride value that is not
+	 '1', so we may need to adjust the number of elements in a range,
+	 according to the stride value.  */
       for (i = 0; i < nargs; i++)
 	{
 	  struct subscript_store *index = &subscript_array[i];
@@ -617,12 +633,16 @@ value_f90_subarray (struct value *array, struct expression *exp,
 	  if (index->kind == SUBSCRIPT_RANGE)
 	    {
 	      struct type *range_type, *interim_array_type;
+	      int new_length;
 
-	      range_type
-		= create_range_type (NULL,
-				     temp_type,
-				     1,
-				     index->range.high - index->range.low + 1);
+	      /* The length of a sub-dimension with all elements between the
+		 bounds plus the start element itself.  It may be modified by
+		 a user provided stride value.  */
+	      new_length = index->range.high - index->range.low;
+	      new_length /= index->range.stride;
+	      new_length++;
+
+	      range_type = create_range_type (NULL, temp_type, 1, new_length);
 
 	      interim_array_type = create_array_type (NULL,
 						      temp_type,

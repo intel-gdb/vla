@@ -3549,10 +3549,13 @@ value_of_this_silent (const struct language_defn *lang)
 struct value *
 value_slice (struct value *array, int lowbound, int length)
 {
-  /* Pass unaltered arguments to VALUE_SLICE_1, plus a CALL_COUNT of '1' as we
-     are only considering the highest dimension, or we are working on a one
-     dimensional array.  So we call VALUE_SLICE_1 exactly once.  */
-  return value_slice_1 (array, lowbound, length, 1);
+  /* Pass unaltered arguments to VALUE_SLICE_1, plus a default stride
+     value of '1', which returns every element between LOWBOUND and
+     (LOWBOUND + LENGTH).  We also provide a default CALL_COUNT of '1'
+     as we are only considering the highest dimension, or we are
+     working on a one dimensional array.  So we call VALUE_SLICE_1
+     exactly once.  */
+  return value_slice_1 (array, lowbound, length, 1, 1);
 }
 
 /* CALL_COUNT is used to determine if we are calling the function once, e.g.
@@ -3566,7 +3569,8 @@ value_slice (struct value *array, int lowbound, int length)
    ranges in the calling function.  */
 
 struct value *
-value_slice_1 (struct value *array, int lowbound, int length, int call_count)
+value_slice_1 (struct value *array, int lowbound, int length,
+	       int stride_length, int call_count)
 {
   struct type *slice_range_type, *slice_type, *range_type;
   struct type *array_type = check_typedef (value_type (array));
@@ -3594,7 +3598,15 @@ value_slice_1 (struct value *array, int lowbound, int length, int call_count)
 		    / TYPE_LENGTH (TYPE_TARGET_TYPE (array_type));
     }
 
-  elem_count = length;
+  /* With a stride of '1', the number of elements per result row is equal to
+     the LENGTH of the subarray.  With non-default stride values, we skip
+     elements, but have to add the start element to the total number of
+     elements per row.  */
+  if (stride_length == 1)
+    elem_count = length;
+  else
+    elem_count = ((length - 1) / stride_length) + 1;
+
   elt_size = TYPE_LENGTH (elt_type);
   elt_offs = longest_to_int (lowbound - ary_low_bound);
   elt_stride = TYPE_LENGTH (TYPE_INDEX_TYPE (array_type));
@@ -3639,8 +3651,9 @@ value_slice_1 (struct value *array, int lowbound, int length, int call_count)
   {
     struct type *element_type;
 
-    /* When CALL_COUNT equals 1 we can use the legacy code for subarrays.  */
-    if (call_count == 1)
+    /* When both CALL_COUNT and STRIDE_LENGTH equal 1, we can use the legacy
+       code for subarrays.  */
+    if (call_count == 1 && stride_length == 1)
       {
 	element_type = TYPE_TARGET_TYPE (array_type);
 
@@ -3661,29 +3674,49 @@ value_slice_1 (struct value *array, int lowbound, int length, int call_count)
 	  }
 
       }
-    /* When CALL_COUNT is larger than 1 we are working on a range of ranges.
-       So we copy the relevant elements into the new array we return.  */
+    /* With CALL_COUNT or STRIDE_LENGTH are greater than 1 we are working
+       on a range of ranges.  So we copy the relevant elements into the
+       new array we return.  */
     else
       {
+	int j, offs_store = elt_offs;
 	LONGEST dst_offset = 0;
 	LONGEST src_row_length = TYPE_LENGTH (TYPE_TARGET_TYPE (array_type));
 
-	element_type = TYPE_TARGET_TYPE (TYPE_TARGET_TYPE (array_type));
+	/* When CALL_COUNT is greater than 1 we are working on a range of
+	   ranges.  */
+	if (call_count == 1)
+	  element_type = TYPE_TARGET_TYPE (array_type);
+	/* Working on an array of arrays, the type of the elements is the type
+	   of the subarrays' type.  */
+	else
+	  element_type = TYPE_TARGET_TYPE (TYPE_TARGET_TYPE (array_type));
+
 	slice_type = create_array_type (NULL, element_type, slice_range_type);
 
-	TYPE_CODE (slice_type) = TYPE_CODE (TYPE_TARGET_TYPE (array_type));
+	/* If we have a one dimensional array, we copy its TYPE_CODE.  For a
+	   multi dimensional array we copy the embedded type's TYPE_CODE.  */
+	if (call_count == 1)
+	  TYPE_CODE (slice_type) = TYPE_CODE (array_type);
+	else
+	  TYPE_CODE (slice_type) = TYPE_CODE (TYPE_TARGET_TYPE (array_type));
 
 	v = allocate_value (slice_type);
-	for (i = 0; i < longest_to_int (row_count); i++)
+
+	/* Iterate through the rows of the outer array and set the new offset
+	   for each row.  */
+	for (i = 0; i < row_count; i++)
 	  {
-	    /* Fetches the contents of ARRAY and copies them into V.  */
-	    value_contents_copy (v,
-				 dst_offset,
-				 array,
-				 elt_offs,
-				 elt_size * elem_count);
-	    elt_offs += src_row_length;
-	    dst_offset += elt_size * elem_count;
+	    elt_offs = offs_store + i * src_row_length;
+
+	    /* Iterate through the elements in each row to copy only those.  */
+	    for (j = 1; j <= elem_count; j++)
+	      {
+		/* Fetches the contents of ARRAY and copies them into V.  */
+		value_contents_copy (v, dst_offset, array, elt_offs, elt_size);
+		elt_offs += elt_size * stride_length;
+		dst_offset += elt_size;
+	      }
 	  }
       }
 
