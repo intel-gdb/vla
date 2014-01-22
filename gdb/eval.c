@@ -2768,6 +2768,25 @@ evaluate_subexp_standard (struct type *expect_type,
 	}
       return evaluate_subexp_for_sizeof (exp, pos);
 
+    case UNOP_KIND:
+      arg1 = evaluate_subexp (NULL, exp, pos, EVAL_AVOID_SIDE_EFFECTS);
+      type =  value_type (arg1);
+
+      switch (TYPE_CODE (type))
+        {
+          case TYPE_CODE_STRUCT:
+          case TYPE_CODE_UNION:
+          case TYPE_CODE_MODULE:
+          case TYPE_CODE_FUNC:
+            error (_("argument of kind must be a non-derived type."));
+        }
+
+      if (!TYPE_TARGET_TYPE(type))
+        return value_from_longest (builtin_type (exp->gdbarch)->builtin_int,
+              TYPE_LENGTH (type));
+      return value_from_longest (builtin_type (exp->gdbarch)->builtin_int,
+            TYPE_LENGTH (TYPE_TARGET_TYPE(type)));
+
     case UNOP_CAST:
       (*pos) += 2;
       type = exp->elts[pc + 1].type;

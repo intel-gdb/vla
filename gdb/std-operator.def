@@ -260,6 +260,8 @@ OP (UNOP_TRUNC)
 OP (OP_BOOL)			/* Modula-2 builtin BOOLEAN type */
 OP (OP_M2_STRING)		/* Modula-2 string constants */
 
+OP (UNOP_KIND)		  /* Unary Fortran kind (followed by expression) */
+
 /* STRUCTOP_... operate on a value from a following subexpression
    by extracting a structure component specified by a string
    that appears in the following exp_elements (as many as needed).

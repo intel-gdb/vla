@@ -195,6 +195,7 @@ static int parse_number (const char *, int, int, YYSTYPE *);
 %token <ssym> NAME_OR_INT 
 
 %token  SIZEOF 
+%token  KIND
 %token ERROR
 
 /* Special type cases, put in to allow the parser to distinguish different
@@ -272,6 +273,10 @@ exp	:	'~' exp    %prec UNARY
 
 exp	:	SIZEOF exp       %prec UNARY
 			{ write_exp_elt_opcode (UNOP_SIZEOF); }
+	;
+
+exp	:	KIND exp       %prec UNARY
+			{ write_exp_elt_opcode (UNOP_KIND); }
 	;
 
 /* No more explicit array operators, we treat everything in F77 as 
@@ -909,6 +914,7 @@ static const struct token f77_keywords[] =
   { "sizeof", SIZEOF, BINOP_END },
   { "real_8", REAL_S8_KEYWORD, BINOP_END },
   { "real", REAL_KEYWORD, BINOP_END },
+  { "kind", KIND, BINOP_END },
   { NULL, 0, 0 }
 }; 
 
