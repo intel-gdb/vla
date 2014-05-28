@@ -537,7 +537,16 @@ c_value_print (struct value *val, struct ui_file *stream,
 	{
 	  /* normal case */
 	  fprintf_filtered (stream, "(");
-	  type_print (value_type (val), "", stream, -1);
+	  if (is_dynamic_type (TYPE_TARGET_TYPE (type)))
+	    {
+	      struct value *v;
+
+	      v = value_ind (val);
+	      v = value_addr (v);
+	      type_print (value_type (v), "", stream, -1);
+	    }
+	  else
+	    type_print (value_type (val), "", stream, -1);
 	  fprintf_filtered (stream, ") ");
 	}
     }
