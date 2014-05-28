@@ -217,4 +217,8 @@ extern void output_command_const (const char *args, int from_tty);
 
 extern int val_print_scalar_type_p (struct type *type);
 
+extern void val_print_not_allocated (struct ui_file *stream);
+
+extern void val_print_not_associated (struct ui_file *stream);
+
 #endif

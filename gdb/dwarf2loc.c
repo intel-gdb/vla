@@ -2287,6 +2287,11 @@ dwarf2_evaluate_loc_desc_full (struct type *type, struct frame_info *frame,
 	    int in_stack_memory = dwarf_expr_fetch_in_stack_memory (ctx, 0);
 
 	    do_cleanups (value_chain);
+
+	    /* Select right frame to correctly evaluate VLA's during a backtrace.  */
+	    if (is_dynamic_type (type))
+	      select_frame (frame);
+
 	    retval = value_at_lazy (type, address + byte_offset);
 	    if (in_stack_memory)
 	      set_value_stack (retval, 1);
@@ -2546,6 +2551,17 @@ dwarf2_compile_property_to_c (struct ui_file *stream,
 			     data, data + size, per_cu);
 }
 
+int
+dwarf2_address_data_valid (const struct type *type)
+{
+  if (TYPE_NOT_ASSOCIATED (type))
+    return 0;
+
+  if (TYPE_NOT_ALLOCATED (type))
+    return 0;
+
+  return 1;
+}
 
 /* Helper functions and baton for dwarf2_loc_desc_needs_frame.  */
 

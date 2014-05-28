@@ -1020,7 +1020,8 @@ create_array_type_with_stride (struct type *result_type,
 
   TYPE_CODE (result_type) = TYPE_CODE_ARRAY;
   TYPE_TARGET_TYPE (result_type) = element_type;
-  if (has_static_range (TYPE_RANGE_DATA (range_type)))
+  if (has_static_range (TYPE_RANGE_DATA (range_type))
+      && dwarf2_address_data_valid (result_type))
     {
       LONGEST low_bound, high_bound;
 
@@ -1630,6 +1631,11 @@ stub_noname_complaint (void)
 static int
 is_dynamic_type_internal (struct type *type, int top_level)
 {
+  int index;
+
+  if (!type)
+    return 0;
+
   type = check_typedef (type);
 
   /* We only want to recognize references at the outermost level.  */
@@ -1646,6 +1652,20 @@ is_dynamic_type_internal (struct type *type, int top_level)
       && (TYPE_DATA_LOCATION_KIND (type) == PROP_LOCEXPR
 	  || TYPE_DATA_LOCATION_KIND (type) == PROP_LOCLIST))
     return 1;
+
+  if (TYPE_ASSOCIATED_PROP (type))
+    return 1;
+
+  if (TYPE_ALLOCATED_PROP (type))
+    return 1;
+
+  /* Scan field types in the Fortran case for nested dynamic types.
+     This will be done only for Fortran as in the C++ case an endless recursion
+     can occur in the area of classes.  */
+  if (current_language->la_language == language_fortran)
+    for (index = 0; index < TYPE_NFIELDS (type); index++)
+      if (is_dynamic_type (TYPE_FIELD_TYPE (type, index)))
+        return 1;
 
   switch (TYPE_CODE (type))
     {
@@ -1702,6 +1722,7 @@ resolve_dynamic_range (struct type *dyn_range_type, CORE_ADDR addr)
   const struct dynamic_prop *prop;
   const struct dwarf2_locexpr_baton *baton;
   struct dynamic_prop low_bound, high_bound;
+  struct type *range_copy = copy_type (dyn_range_type);
 
   gdb_assert (TYPE_CODE (dyn_range_type) == TYPE_CODE_RANGE);
 
@@ -1733,8 +1754,8 @@ resolve_dynamic_range (struct type *dyn_range_type, CORE_ADDR addr)
       high_bound.data.const_val = 0;
     }
 
-  static_range_type = create_range_type (copy_type (dyn_range_type),
-					 TYPE_TARGET_TYPE (dyn_range_type),
+  static_range_type = create_range_type (range_copy,
+					 TYPE_TARGET_TYPE (range_copy),
 					 &low_bound, &high_bound);
   TYPE_RANGE_DATA (static_range_type)->flag_bound_evaluated = 1;
   return static_range_type;
@@ -1751,6 +1772,8 @@ resolve_dynamic_array (struct type *type, CORE_ADDR addr)
   struct type *elt_type;
   struct type *range_type;
   struct type *ary_dim;
+  struct dynamic_prop *prop;
+  struct type *copy = copy_type (type);
 
   gdb_assert (TYPE_CODE (type) == TYPE_CODE_ARRAY);
 
@@ -1758,14 +1781,28 @@ resolve_dynamic_array (struct type *type, CORE_ADDR addr)
   range_type = check_typedef (TYPE_INDEX_TYPE (elt_type));
   range_type = resolve_dynamic_range (range_type, addr);
 
+  prop = TYPE_ALLOCATED_PROP (type);
+  if (dwarf2_evaluate_property (prop, addr, &value))
+    {
+      TYPE_ALLOCATED_PROP (copy)->kind = PROP_CONST;
+      TYPE_ALLOCATED_PROP (copy)->data.const_val = value;
+    }
+
+  prop = TYPE_ASSOCIATED_PROP (type);
+  if (dwarf2_evaluate_property (prop, addr, &value))
+    {
+      TYPE_ASSOCIATED_PROP (copy)->kind = PROP_CONST;
+      TYPE_ASSOCIATED_PROP (copy)->data.const_val = value;
+    }
+
   ary_dim = check_typedef (TYPE_TARGET_TYPE (elt_type));
 
   if (ary_dim != NULL && TYPE_CODE (ary_dim) == TYPE_CODE_ARRAY)
-    elt_type = resolve_dynamic_array (TYPE_TARGET_TYPE (type), addr);
+    elt_type = resolve_dynamic_array (TYPE_TARGET_TYPE (copy), addr);
   else
     elt_type = TYPE_TARGET_TYPE (type);
 
-  return create_array_type (copy_type (type),
+  return create_array_type (copy,
 			    elt_type,
 			    range_type);
 }
@@ -4174,6 +4211,20 @@ copy_type_recursive (struct objfile *objfile,
 	      sizeof (struct dynamic_prop));
     }
 
+  /* Copy allocated information.  */
+  if (TYPE_ALLOCATED_PROP (type) != NULL)
+    {
+      TYPE_ALLOCATED_PROP (new_type) = xmalloc (sizeof (struct dynamic_prop));
+      *TYPE_ALLOCATED_PROP (new_type) = *TYPE_ALLOCATED_PROP (type);
+    }
+
+  /* Copy associated information.  */
+  if (TYPE_ASSOCIATED_PROP (type) != NULL)
+    {
+      TYPE_ASSOCIATED_PROP (new_type) = xmalloc (sizeof (struct dynamic_prop));
+      *TYPE_ASSOCIATED_PROP (new_type) = *TYPE_ASSOCIATED_PROP (type);
+    }
+
   /* Copy pointers to other types.  */
   if (TYPE_TARGET_TYPE (type))
     TYPE_TARGET_TYPE (new_type) = 
@@ -4226,6 +4277,44 @@ copy_type (const struct type *type)
       memcpy (TYPE_DATA_LOCATION (new_type), TYPE_DATA_LOCATION (type),
 	      sizeof (struct dynamic_prop));
     }
+
+  if (TYPE_ALLOCATED_PROP (type))
+    {
+      TYPE_ALLOCATED_PROP (new_type)
+              = OBSTACK_ZALLOC (&TYPE_OWNER (type).objfile->objfile_obstack,
+                                struct dynamic_prop);
+      memcpy (TYPE_ALLOCATED_PROP (new_type), TYPE_ALLOCATED_PROP (type),
+        sizeof (struct dynamic_prop));
+    }
+
+  if (TYPE_ASSOCIATED_PROP (type))
+    {
+      TYPE_ASSOCIATED_PROP (new_type)
+              = OBSTACK_ZALLOC (&TYPE_OWNER (type).objfile->objfile_obstack,
+                                struct dynamic_prop);
+      memcpy (TYPE_ASSOCIATED_PROP (new_type), TYPE_ASSOCIATED_PROP (type),
+        sizeof (struct dynamic_prop));
+    }
+
+  if (TYPE_DATA_LOCATION (type))
+    {
+      TYPE_DATA_LOCATION (new_type)
+              = OBSTACK_ZALLOC (&TYPE_OWNER (type).objfile->objfile_obstack,
+                                struct dynamic_prop);
+      memcpy (TYPE_DATA_LOCATION (new_type), TYPE_DATA_LOCATION (type),
+        sizeof (struct dynamic_prop));
+    }
+
+  if (TYPE_NFIELDS (type))
+    {
+      int nfields = TYPE_NFIELDS (type);
+
+      TYPE_FIELDS (new_type)
+              = OBSTACK_CALLOC (&TYPE_OWNER (type).objfile->objfile_obstack,
+                                nfields, struct field);
+      memcpy (TYPE_FIELDS (new_type), TYPE_FIELDS (type),
+        nfields * sizeof (struct field));
+   }
 
   return new_type;
 }
