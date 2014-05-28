@@ -815,7 +815,8 @@ allocate_stub_method (struct type *type)
 struct type *
 create_range_type (struct type *result_type, struct type *index_type,
 		   const struct dynamic_prop *low_bound,
-		   const struct dynamic_prop *high_bound)
+		   const struct dynamic_prop *high_bound,
+		   const struct dynamic_prop *stride)
 {
   if (result_type == NULL)
     result_type = alloc_type_copy (index_type);
@@ -830,6 +831,7 @@ create_range_type (struct type *result_type, struct type *index_type,
     TYPE_ZALLOC (result_type, sizeof (struct range_bounds));
   TYPE_RANGE_DATA (result_type)->low = *low_bound;
   TYPE_RANGE_DATA (result_type)->high = *high_bound;
+  TYPE_RANGE_DATA (result_type)->stride = *stride;
 
   if (low_bound->kind == PROP_CONST && low_bound->data.const_val >= 0)
     TYPE_UNSIGNED (result_type) = 1;
@@ -858,7 +860,7 @@ struct type *
 create_static_range_type (struct type *result_type, struct type *index_type,
 			  LONGEST low_bound, LONGEST high_bound)
 {
-  struct dynamic_prop low, high;
+  struct dynamic_prop low, high, stride;
 
   low.kind = PROP_CONST;
   low.data.const_val = low_bound;
@@ -866,7 +868,11 @@ create_static_range_type (struct type *result_type, struct type *index_type,
   high.kind = PROP_CONST;
   high.data.const_val = high_bound;
 
-  result_type = create_range_type (result_type, index_type, &low, &high);
+  stride.kind = PROP_CONST;
+  stride.data.const_val = 0;
+
+  result_type = create_range_type (result_type, index_type,
+                                   &low, &high, &stride);
 
   return result_type;
 }
@@ -1023,16 +1029,21 @@ create_array_type_with_stride (struct type *result_type,
   if (has_static_range (TYPE_RANGE_DATA (range_type))
       && dwarf2_address_data_valid (result_type))
     {
-      LONGEST low_bound, high_bound;
+      LONGEST low_bound, high_bound, byte_stride;
 
       if (get_discrete_bounds (range_type, &low_bound, &high_bound) < 0)
 	low_bound = high_bound = 0;
       CHECK_TYPEDEF (element_type);
+
+      byte_stride = abs (TYPE_BYTE_STRIDE (range_type));
+
       /* Be careful when setting the array length.  Ada arrays can be
 	 empty arrays with the high_bound being smaller than the low_bound.
 	 In such cases, the array length should be zero.  */
       if (high_bound < low_bound)
 	TYPE_LENGTH (result_type) = 0;
+      else if (byte_stride > 0)
+	TYPE_LENGTH (result_type) = byte_stride * (high_bound - low_bound + 1);
       else if (bit_stride > 0)
 	TYPE_LENGTH (result_type) =
 	  (bit_stride * (high_bound - low_bound + 1) + 7) / 8;
@@ -1732,7 +1743,7 @@ resolve_dynamic_range (struct type *dyn_range_type, CORE_ADDR addr)
   struct type *static_range_type;
   const struct dynamic_prop *prop;
   const struct dwarf2_locexpr_baton *baton;
-  struct dynamic_prop low_bound, high_bound;
+  struct dynamic_prop low_bound, high_bound, stride;
   struct type *range_copy = copy_type (dyn_range_type);
 
   gdb_assert (TYPE_CODE (dyn_range_type) == TYPE_CODE_RANGE);
@@ -1764,10 +1775,17 @@ resolve_dynamic_range (struct type *dyn_range_type, CORE_ADDR addr)
       high_bound.kind = PROP_UNDEFINED;
       high_bound.data.const_val = 0;
     }
+  
+  prop = &TYPE_RANGE_DATA (dyn_range_type)->stride;
+  if (dwarf2_evaluate_property (prop, addr, &value))
+    {
+      stride.kind = PROP_CONST;
+      stride.data.const_val = value;
+    }
 
   static_range_type = create_range_type (range_copy,
 					 TYPE_TARGET_TYPE (range_copy),
-					 &low_bound, &high_bound);
+					 &low_bound, &high_bound, &stride);
   TYPE_RANGE_DATA (static_range_type)->flag_bound_evaluated = 1;
   return static_range_type;
 }
@@ -1988,6 +2006,15 @@ resolve_dynamic_type_internal (struct type *type, CORE_ADDR addr,
   prop = TYPE_DATA_LOCATION (resolved_type);
   if (dwarf2_evaluate_property (prop, addr, &value))
     {
+      struct type *range_type = TYPE_INDEX_TYPE (resolved_type);
+
+      /* Adjust the data location with the value of byte stride if set, which
+         can describe the separation between successive elements along the
+         dimension.  */
+      if (TYPE_BYTE_STRIDE (range_type) < 0)
+        value += (TYPE_HIGH_BOUND (range_type) - TYPE_LOW_BOUND (range_type))
+                  * TYPE_BYTE_STRIDE (range_type);
+
       TYPE_DATA_LOCATION_ADDR (resolved_type) = value;
       TYPE_DATA_LOCATION_KIND (resolved_type) = PROP_CONST;
     }

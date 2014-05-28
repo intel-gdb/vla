@@ -14773,7 +14773,7 @@ read_subrange_type (struct die_info *die, struct dwarf2_cu *cu)
   struct type *base_type, *orig_base_type;
   struct type *range_type;
   struct attribute *attr;
-  struct dynamic_prop low, high;
+  struct dynamic_prop low, high, stride;
   int low_default_is_valid;
   int high_bound_is_count = 0;
   const char *name;
@@ -14793,7 +14793,9 @@ read_subrange_type (struct die_info *die, struct dwarf2_cu *cu)
 
   low.kind = PROP_CONST;
   high.kind = PROP_CONST;
+  stride.kind = PROP_CONST;
   high.data.const_val = 0;
+  stride.data.const_val = 0;
 
   /* Set LOW_DEFAULT_IS_VALID if current language and DWARF version allow
      omitting DW_AT_lower_bound.  */
@@ -14825,6 +14827,13 @@ read_subrange_type (struct die_info *die, struct dwarf2_cu *cu)
       low_default_is_valid = 0;
       break;
     }
+
+  attr = dwarf2_attr (die, DW_AT_byte_stride, cu);
+  if (attr)
+    if (!attr_to_dynamic_prop (attr, die, cu, &stride, NULL, 0))
+        complaint (&symfile_complaints, _("Missing DW_AT_byte_stride "
+                  "- DIE at 0x%x [in module %s]"),
+             die->offset.sect_off, objfile_name (cu->objfile));
 
   attr = dwarf2_attr (die, DW_AT_lower_bound, cu);
   if (attr)
@@ -14902,7 +14911,7 @@ read_subrange_type (struct die_info *die, struct dwarf2_cu *cu)
       && !TYPE_UNSIGNED (base_type) && (high.data.const_val & negative_mask))
     high.data.const_val |= negative_mask;
 
-  range_type = create_range_type (NULL, orig_base_type, &low, &high);
+  range_type = create_range_type (NULL, orig_base_type, &low, &high, &stride);
 
   if (high_bound_is_count)
     TYPE_RANGE_DATA (range_type)->flag_upper_bound_is_count = 1;
