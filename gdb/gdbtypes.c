@@ -1693,6 +1693,17 @@ is_dynamic_type_internal (struct type *type, int top_level)
 	      && is_dynamic_type_internal (TYPE_FIELD_TYPE (type, i), 0))
 	    return 1;
       }
+    case TYPE_CODE_PTR:
+      {
+        if (TYPE_TARGET_TYPE (type)
+            && TYPE_CODE (TYPE_TARGET_TYPE (type)) == TYPE_CODE_STRING)
+          return is_dynamic_type (check_typedef (TYPE_TARGET_TYPE (type)));
+
+        return 0;
+        break;
+      }
+    default:
+      return 0;
       break;
     }
 
@@ -1775,7 +1786,8 @@ resolve_dynamic_array (struct type *type, CORE_ADDR addr)
   struct dynamic_prop *prop;
   struct type *copy = copy_type (type);
 
-  gdb_assert (TYPE_CODE (type) == TYPE_CODE_ARRAY);
+  gdb_assert (TYPE_CODE (type) == TYPE_CODE_ARRAY
+              || TYPE_CODE (type) == TYPE_CODE_STRING);
 
   elt_type = type;
   range_type = check_typedef (TYPE_INDEX_TYPE (elt_type));
@@ -1797,14 +1809,20 @@ resolve_dynamic_array (struct type *type, CORE_ADDR addr)
 
   ary_dim = check_typedef (TYPE_TARGET_TYPE (elt_type));
 
-  if (ary_dim != NULL && TYPE_CODE (ary_dim) == TYPE_CODE_ARRAY)
+  if (ary_dim != NULL && (TYPE_CODE (ary_dim) == TYPE_CODE_ARRAY
+          || TYPE_CODE (ary_dim) == TYPE_CODE_STRING))
     elt_type = resolve_dynamic_array (TYPE_TARGET_TYPE (copy), addr);
   else
     elt_type = TYPE_TARGET_TYPE (type);
 
-  return create_array_type (copy,
-			    elt_type,
-			    range_type);
+  if (TYPE_CODE (type) == TYPE_CODE_STRING)
+    return create_string_type (copy,
+            elt_type,
+            range_type);
+  else
+    return create_array_type (copy,
+            elt_type,
+            range_type);
 }
 
 /* Resolve dynamic bounds of members of the union TYPE to static
@@ -1948,8 +1966,9 @@ resolve_dynamic_type_internal (struct type *type, CORE_ADDR addr,
 	  }
 
 	case TYPE_CODE_ARRAY:
+	case TYPE_CODE_STRING:
 	  resolved_type = resolve_dynamic_array (type, addr);
-	  break;
+		break;
 
 	case TYPE_CODE_RANGE:
 	  resolved_type = resolve_dynamic_range (type, addr);
