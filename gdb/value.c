@@ -3673,6 +3673,12 @@ coerce_ref (struct value *arg)
   struct value *retval;
   struct type *enc_type;
 
+  if (current_language->la_language != language_fortran
+      && TYPE_DATA_LOCATION (value_type_arg_tmp) != NULL
+      && TYPE_DATA_LOCATION_KIND (value_type_arg_tmp) == PROP_CONST)
+    arg = value_at_lazy (value_type_arg_tmp,
+                         TYPE_DATA_LOCATION_ADDR (value_type_arg_tmp));
+
   retval = coerce_ref_if_computed (arg);
   if (retval)
     return retval;
