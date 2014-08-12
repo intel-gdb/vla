@@ -2032,6 +2032,16 @@ resolve_dynamic_type (struct type *type, CORE_ADDR addr)
   return resolve_dynamic_type_internal (type, addr, 1);
 }
 
+/* See gdbtypes.h  */
+
+LONGEST *
+dynamic_prop_get_const_val_ptr (struct dynamic_prop *prop)
+{
+  gdb_assert (prop->kind == PROP_CONST);
+
+  return &prop->data.const_val;
+}
+
 /* Find the real type of TYPE.  This function returns the real type,
    after removing all layers of typedefs, and completing opaque or stub
    types.  Completion changes the TYPE argument, but stripping of

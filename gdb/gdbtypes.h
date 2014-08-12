@@ -1203,9 +1203,9 @@ extern void allocate_gnat_aux_type (struct type *);
 #define TYPE_INDEX_TYPE(type) TYPE_FIELD_TYPE (type, 0)
 #define TYPE_RANGE_DATA(thistype) TYPE_MAIN_TYPE(thistype)->flds_bnds.bounds
 #define TYPE_LOW_BOUND(range_type) \
-  TYPE_RANGE_DATA(range_type)->low.data.const_val
+  (*dynamic_prop_get_const_val_ptr (&TYPE_RANGE_DATA(range_type)->low))
 #define TYPE_HIGH_BOUND(range_type) \
-  TYPE_RANGE_DATA(range_type)->high.data.const_val
+  (*dynamic_prop_get_const_val_ptr (&TYPE_RANGE_DATA(range_type)->high))
 #define TYPE_LOW_BOUND_UNDEFINED(range_type) \
   (TYPE_RANGE_DATA(range_type)->low.kind == PROP_UNDEFINED)
 #define TYPE_HIGH_BOUND_UNDEFINED(range_type) \
@@ -1221,7 +1221,7 @@ extern void allocate_gnat_aux_type (struct type *);
 #define TYPE_BYTE_STRIDE_LOCLIST(range_type) \
   TYPE_RANGE_DATA(range_type)->stride.data.loclist
 #define TYPE_BYTE_STRIDE_KIND(range_type) \
-  TYPE_RANGE_DATA(range_type)->stride.kind
+  (*dynamic_prop_get_const_val_ptr (&TYPE_RANGE_DATA(range_type)->stride))
 
 
 /* Attribute accessors for the type data location.  */
@@ -1759,6 +1759,10 @@ extern struct type *resolve_dynamic_type (struct type *type, CORE_ADDR addr);
 
 /* * Predicate if the type has dynamic values, which are not resolved yet.  */
 extern int is_dynamic_type (struct type *type);
+
+/* * Fetch const_val reference from PROP.  It is never dynamically resolved,
+     the correct KIND is checked by gdb_assert.  */
+extern LONGEST *dynamic_prop_get_const_val_ptr (struct dynamic_prop *prop);
 
 extern struct type *check_typedef (struct type *);
 
