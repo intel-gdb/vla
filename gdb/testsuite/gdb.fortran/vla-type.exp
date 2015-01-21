@@ -1,0 +1,127 @@
+# Copyright 2013 Free Software Foundation, Inc.
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+standard_testfile ".f90"
+
+if { [prepare_for_testing ${testfile}.exp ${testfile} ${srcfile} \
+     {debug f90 quiet}] } {
+    return -1
+}
+
+if ![runto MAIN__] then {
+    perror "couldn't run to breakpoint MAIN__"
+    continue
+}
+
+# Check if not allocated VLA in type does not break
+# the debugger when accessing it.
+gdb_breakpoint [gdb_get_line_number "before-allocated"]
+gdb_continue_to_breakpoint "before-allocated"
+gdb_test "print twov" "\\$\\d+ = \\\( <not allocated>, <not allocated> \\\)" \
+  "print twov before allocated"
+gdb_test "print twov%ivla1" "\\$\\d+ = <not allocated>" \
+  "print twov%ivla1 before allocated"
+
+# Check type with one VLA's inside
+gdb_breakpoint [gdb_get_line_number "onev-filled"]
+gdb_continue_to_breakpoint "onev-filled"
+gdb_test "print onev%ivla(5, 11, 23)" "\\$\\d+ = 1" "print onev%ivla(5, 11, 23)"
+gdb_test "print onev%ivla(1, 2, 3)" "\\$\\d+ = 123" "print onev%ivla(1, 2, 3)"
+gdb_test "print onev%ivla(3, 2, 1)" "\\$\\d+ = 321" "print onev%ivla(3, 2, 1)"
+gdb_test "ptype onev" \
+  "type = Type one\r\n\\s+real\\\(kind=4\\\) :: ivla\\\(11,22,33\\\)\r\nEnd Type one" \
+  "ptype onev"
+
+# Check type with two VLA's inside
+gdb_breakpoint [gdb_get_line_number "twov-filled"]
+gdb_continue_to_breakpoint "twov-filled"
+gdb_test "print twov%ivla1(5, 11, 23)" "\\$\\d+ = 1" \
+  "print twov%ivla1(5, 11, 23)"
+gdb_test "print twov%ivla1(1, 2, 3)" "\\$\\d+ = 123" \
+  "print twov%ivla1(1, 2, 3)"
+gdb_test "print twov%ivla1(3, 2, 1)" "\\$\\d+ = 321" \
+  "print twov%ivla1(3, 2, 1)"
+gdb_test "ptype twov" \
+  "type = Type two\r\n\\s+real\\\(kind=4\\\) :: ivla1\\\(5,12,99\\\)\r\n\\s+real\\\(kind=4\\\) :: ivla2\\\(9,12\\\)\r\nEnd Type two" \
+  "ptype twov"
+
+# Check type with attribute at beginn of type
+gdb_breakpoint [gdb_get_line_number "threev-filled"]
+gdb_continue_to_breakpoint "threev-filled"
+gdb_test "print threev%ivla(1)" "\\$\\d+ = 1" "print threev%ivla(1)"
+gdb_test "print threev%ivla(5)" "\\$\\d+ = 42" "print threev%ivla(5)"
+gdb_test "print threev%ivla(14)" "\\$\\d+ = 24" "print threev%ivla(14)"
+gdb_test "print threev%ivar" "\\$\\d+ = 3.14\\d+?" "print threev%ivar"
+gdb_test "ptype threev" \
+  "type = Type three\r\n\\s+real\\\(kind=4\\\) :: ivar\r\n\\s+real\\\(kind=4\\\) :: ivla\\\(20\\\)\r\nEnd Type three" \
+  "ptype threev"
+
+# Check type with attribute at end of type
+gdb_breakpoint [gdb_get_line_number "fourv-filled"]
+gdb_continue_to_breakpoint "fourv-filled"
+gdb_test "print fourv%ivla(1)" "\\$\\d+ = 1" "print fourv%ivla(1)"
+gdb_test "print fourv%ivla(2)" "\\$\\d+ = 2" "print fourv%ivla(2)"
+gdb_test "print fourv%ivla(7)" "\\$\\d+ = 7" "print fourv%ivla(7)"
+gdb_test "print fourv%ivla(12)" "no such vector element" "print fourv%ivla(12)"
+gdb_test "print fourv%ivar" "\\$\\d+ = 3.14\\d+?" "print fourv%ivar"
+gdb_test "ptype fourv" \
+  "type = Type four\r\n\\s+real\\\(kind=4\\\) :: ivla\\\(10\\\)\r\n\\s+real\\\(kind=4\\\) :: ivar\r\nEnd Type four" \
+  "ptype fourv"
+
+# Check VLA of types
+gdb_breakpoint [gdb_get_line_number "onevla-filled"]
+gdb_continue_to_breakpoint "onevla-filled"
+gdb_test "print onevla(2,2)%ivla(3, 6, 9)" \
+  "\\$\\d+ = 369" "print onevla(2,2)%ivla(3, 6, 9)"
+gdb_test "print onevla(2,2)%ivla(9, 3, 6)" \
+  "\\$\\d+ = 936" "print onevla(2,2)%ivla(9, 3, 6)"
+
+# Check nested types containing a VLA
+gdb_breakpoint [gdb_get_line_number "fivev-filled"]
+gdb_continue_to_breakpoint "fivev-filled"
+gdb_test "print fivev%tone%ivla(5, 5, 1)" "\\$\\d+ = 1" \
+  "print fivev%tone%ivla(5, 5, 1)"
+gdb_test "print fivev%tone%ivla(1, 2, 3)" "\\$\\d+ = 123" \
+  "print fivev%tone%ivla(1, 2, 3)"
+gdb_test "print fivev%tone%ivla(3, 2, 1)" "\\$\\d+ = 321" \
+  "print fivev%tone%ivla(3, 2, 1)"
+gdb_test "ptype fivev" \
+  "type = Type five\r\n\\s+Type one\r\n\\s+real\\\(kind=4\\\) :: ivla\\\(10,10,10\\\)\r\n\\s+End Type one :: tone\r\nEnd Type five" \
+  "ptype fivev"
+
+# Check pointer to type, containing a VLA
+gdb_breakpoint [gdb_get_line_number "onep-associated"]
+gdb_continue_to_breakpoint "onep-associated"
+gdb_test "ptype onev" ".*real\\\(kind=4\\\) :: ivla\\\(11,22,33\\\).*" \
+  "ptype onev"
+gdb_test "ptype onep" ".*real\\\(kind=4\\\) :: ivla\\\(11,22,33\\\).*" \
+  "ptype onep"
+
+gdb_test "print onev%ivla" "\\$\\d+ = \\( *\\( *\\( *2, *2, *2,\[()2, .\]*\\)" \
+  "print onev%ivla"
+gdb_test "print onev" "\\$\\d+ = \\( *\\( *\\( *\\( *2, *2, *2,\[()2, .\]*\\)" \
+  "print onev"
+gdb_test "print onep" ".*real\\\(kind=4\\\) :: ivla\\\(11,22,33\\\).*" \
+  "print onep"
+
+gdb_test "ptype onev%ivla" "type = real\\\(kind=4\\\) \\\(11,22,33\\\)" \
+  "ptype onev%ivla"
+gdb_test "ptype onep%ivla" "type = real\\\(kind=4\\\) \\\(11,22,33\\\)" \
+  "ptype onep%ivla"
+
+gdb_test "ptype onev%ivla(1,1,1)" "type = real\\\(kind=4\\\)" \
+  "ptype onev%ivla(1,1,1)"
+gdb_test "ptype onep%ivla(1,1,1)" "type = real\\\(kind=4\\\)" \
+  "ptype onep%ivla(1,1,1)"

@@ -1907,6 +1907,10 @@ resolve_dynamic_struct (struct type *type, CORE_ADDR addr)
       if (field_is_static (&TYPE_FIELD (type, i)))
 	continue;
 
+      if (TYPE_CODE (TYPE_FIELD_TYPE (resolved_type, i)) != TYPE_CODE_RANGE)
+        addr +=
+                (TYPE_FIELD_BITPOS (resolved_type, i) / 8);
+
       TYPE_FIELD_TYPE (resolved_type, i)
 	= resolve_dynamic_type_internal (TYPE_FIELD_TYPE (resolved_type, i),
 					 addr, 0);
@@ -1952,8 +1956,10 @@ resolve_dynamic_type_internal (struct type *type, CORE_ADDR addr,
 {
   struct type *real_type = check_typedef (type);
   struct type *resolved_type = type;
+  struct type *cur_type, *prev_type;
   const struct dynamic_prop *prop;
-  CORE_ADDR value;
+  CORE_ADDR value, adj_addr = addr;
+  int depth = 0, index = 0;
 
   if (!is_dynamic_type_internal (real_type, top_level))
     return type;
@@ -1995,10 +2001,6 @@ resolve_dynamic_type_internal (struct type *type, CORE_ADDR addr,
 	case TYPE_CODE_UNION:
 	  resolved_type = resolve_dynamic_union (type, addr);
 	  break;
-
-	case TYPE_CODE_STRUCT:
-	  resolved_type = resolve_dynamic_struct (type, addr);
-	  break;
 	}
     }
 
@@ -2017,9 +2019,42 @@ resolve_dynamic_type_internal (struct type *type, CORE_ADDR addr,
 
       TYPE_DATA_LOCATION_ADDR (resolved_type) = value;
       TYPE_DATA_LOCATION_KIND (resolved_type) = PROP_CONST;
+      adj_addr = value;
     }
   else
     TYPE_DATA_LOCATION (resolved_type) = NULL;
+
+  /* Resolve nested compounds, e.g. in Fortran we can have structs (types)
+     nested in VLA's.  */
+  cur_type = resolved_type;
+  prev_type = cur_type;
+  while (cur_type)
+    {
+      if (TYPE_CODE (cur_type) == TYPE_CODE_PTR)
+        break;
+
+      if (TYPE_CODE (cur_type) == TYPE_CODE_STRUCT
+              && TYPE_NFIELDS (cur_type) > 0)
+        {
+          cur_type = resolve_dynamic_struct (cur_type, adj_addr);
+
+          /* If a struct type will be resolved as the first type, we need
+             to assign it back the resolved_type. In the other case it can
+             be that we have a struct, which is nested in another type.
+             Therefore we need to preserve the previous type, to assign the
+             new resolved type as the previous' target type.  */
+          if (depth == 0)
+            resolved_type = cur_type;
+          else
+            TYPE_TARGET_TYPE (prev_type) = cur_type;
+        }
+
+      /* Store the previous type, in order to assign resolved types back to
+        the right target type.  */
+      prev_type = cur_type;
+      cur_type = TYPE_TARGET_TYPE (cur_type);
+      depth++;
+    };
 
   return resolved_type;
 }

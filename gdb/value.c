@@ -3061,13 +3061,21 @@ value_primitive_field (struct value *arg1, int offset,
 	v = allocate_value_lazy (type);
       else
 	{
-	  v = allocate_value (type);
-	  value_contents_copy_raw (v, value_embedded_offset (v),
-				   arg1, value_embedded_offset (arg1) + offset,
-				   TYPE_LENGTH (type));
+      if (TYPE_DATA_LOCATION (type)
+          && TYPE_DATA_LOCATION_KIND (type) == PROP_CONST)
+        v = value_at_lazy (type, value_address (arg1) + offset);
+      else
+        {
+          v = allocate_value (type);
+          value_contents_copy_raw (v, value_embedded_offset (v),
+                 arg1, value_embedded_offset (arg1) + offset,
+                 TYPE_LENGTH (type));
+        }
 	}
-      v->offset = (value_offset (arg1) + offset
-		   + value_embedded_offset (arg1));
+      if (!TYPE_DATA_LOCATION (type)
+              || !TYPE_DATA_LOCATION_KIND (type) == PROP_CONST)
+        v->offset = (value_offset (arg1) + offset
+         + value_embedded_offset (arg1));
     }
   set_value_component_location (v, arg1);
   VALUE_REGNUM (v) = VALUE_REGNUM (arg1);
@@ -3813,8 +3821,14 @@ value_fetch_lazy (struct value *val)
     }
   else if (VALUE_LVAL (val) == lval_memory)
     {
-      CORE_ADDR addr = value_address (val);
+      CORE_ADDR addr;
       struct type *type = check_typedef (value_enclosing_type (val));
+
+      if (TYPE_DATA_LOCATION (type) != NULL
+              && TYPE_DATA_LOCATION_KIND (type) == PROP_CONST)
+        addr = TYPE_DATA_LOCATION_ADDR (type);
+      else
+        addr = value_address (val);
 
       if (TYPE_LENGTH (type))
 	read_value_memory (val, 0, value_stack (val),
